@@ -1,0 +1,9 @@
+apiVersion: cert.compute.io/v1
+kind: OCPCertificateTracker
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-renewer-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: ocpcertificatetracker-sample
+spec:
+  # TODO(user): Add fields here

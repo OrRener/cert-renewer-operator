@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- cert_v1_ocpcertificatetracker.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

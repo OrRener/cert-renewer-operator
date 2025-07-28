@@ -28,3 +28,6 @@ go.work
 
 # Kubeconfig
 .kubeconfig
+
+# Pull secret
+pull-secret.json
