@@ -33,8 +33,9 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - pods
   - secrets
-  verbs:
+  verbs:   
   - get
   - list
   - watch
