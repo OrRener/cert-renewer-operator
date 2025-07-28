@@ -206,16 +206,10 @@ func (r *OCPCertificateTrackerReconciler) GetAboutToExpireCertificatesApplicatio
 
 	var aboutToExpire []AboutToExpireCertificates
 	var AboutToExpireCerts []AboutToExpireCertificates
-	secretMap := make(map[string]corev1.Secret)
 
 	for _, status := range certs {
 		if status.Status == "About to expire" {
-			key := fmt.Sprintf("%s/%s", status.Namespace, status.Name)
-			secret, exists := secretMap[key]
-			if !exists {
-				continue
-			}
-			app := secret.Labels["app.kubernetes.io/instance"]
+			app := status.Secret.Labels["app.kubernetes.io/instance"]
 			aboutToExpire = append(aboutToExpire, AboutToExpireCertificates{
 				Name:        status.Name,
 				Namespace:   status.Namespace,
