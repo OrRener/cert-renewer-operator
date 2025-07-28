@@ -268,6 +268,7 @@ func (r *OCPCertificateTrackerReconciler) UpdateExpiryStatus(ctx context.Context
 	return CertList
 }
 
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	log.Info("Reconciling OCPCertificateTracker", "name", req.Name, "namespace", req.Namespace)
