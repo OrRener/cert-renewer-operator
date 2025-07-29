@@ -85,7 +85,7 @@ func ParseDaysDuration(threshold string) (string, error) {
 
 func (r *OCPCertificateTrackerReconciler) CreateObjectStatus(ctx context.Context, instance *certv1.OCPCertificateTracker, secrets []CertStatus) {
 	log := logf.FromContext(ctx)
-	log.Info("Updating OCPCertificateTracker status with error", "name", instance.Name, "namespace", instance.Namespace)
+	log.Info("Updating OCPCertificateTracker status", "name", instance.Name, "namespace", instance.Namespace)
 	var statuses []certv1.CertificatesStatusStruct
 
 	for _, secret := range secrets {
