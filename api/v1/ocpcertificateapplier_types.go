@@ -20,25 +20,28 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type TargetSecret struct {
+	Name        string   `json:"name"`
+	Application string   `json:"application"`
+	Dnses       []string `json:"dnses"`
+	GitPath     string   `json:"gitPath"`
+}
+
+type CertificateStatus struct {
+	Name    string `json:"name"`
+	Status  string `json:"status"`  // e.g. "Ready", "NotReady", "Failed"
+	Message string `json:"message"` // Additional information about the certificate status
+}
 
 // OCPCertificateApplierSpec defines the desired state of OCPCertificateApplier
 type OCPCertificateApplierSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
-	// foo is an example field of OCPCertificateApplier. Edit ocpcertificateapplier_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+	CertificatesToCreate []TargetSecret `json:"certificatesToCreate"`
 }
 
 // OCPCertificateApplierStatus defines the observed state of OCPCertificateApplier.
 type OCPCertificateApplierStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Certificates []CertificateStatus `json:"certificates"`
+	GitPR        string              `json:"gitPR,omitempty"`
 }
 
 // +kubebuilder:object:root=true

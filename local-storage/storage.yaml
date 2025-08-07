@@ -1,0 +1,15 @@
+apiVersion: v1
+items:
+- apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    labels:
+      local.storage.openshift.io/owner-name: local-disks
+      local.storage.openshift.io/owner-namespace: openshift-local-storage
+    name: localblock
+  provisioner: kubernetes.io/no-provisioner
+  reclaimPolicy: Delete
+  volumeBindingMode: Immediate
+kind: List
+metadata:
+  resourceVersion: ""

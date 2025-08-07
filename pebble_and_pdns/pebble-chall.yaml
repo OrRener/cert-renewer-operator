@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pebble-challtestsrv
+  namespace: ocp-controller-cert-renewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: challtestsrv
+  template:
+    metadata:
+      labels:
+        app: challtestsrv
+    spec:
+      containers:
+        - name: challtestsrv
+          image: letsencrypt/pebble-challtestsrv
+          ports:
+            - containerPort: 8053 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: challtestsrv
+  namespace: ocp-controller-cert-renewer
+spec:
+  selector:
+    app: challtestsrv
+  ports:
+    - name: dns
+      port: 8053
+      targetPort: 8053

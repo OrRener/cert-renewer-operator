@@ -9,12 +9,14 @@ rules:
   resources:
   - secrets
   verbs:
+  - create
   - get
   - list
   - watch
 - apiGroups:
   - cert.compute.io
   resources:
+  - ocpcertificateappliers
   - ocpcertificatetrackers
   verbs:
   - create
@@ -27,12 +29,14 @@ rules:
 - apiGroups:
   - cert.compute.io
   resources:
+  - ocpcertificateappliers/finalizers
   - ocpcertificatetrackers/finalizers
   verbs:
   - update
 - apiGroups:
   - cert.compute.io
   resources:
+  - ocpcertificateappliers/status
   - ocpcertificatetrackers/status
   verbs:
   - get

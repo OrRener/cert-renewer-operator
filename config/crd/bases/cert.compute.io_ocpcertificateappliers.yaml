@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: ocpcertificatetrackers.cert.compute.io
+  name: ocpcertificateappliers.cert.compute.io
 spec:
   group: cert.compute.io
   names:
-    kind: OCPCertificateTracker
-    listKind: OCPCertificateTrackerList
-    plural: ocpcertificatetrackers
-    singular: ocpcertificatetracker
+    kind: OCPCertificateApplier
+    listKind: OCPCertificateApplierList
+    plural: ocpcertificateappliers
+    singular: ocpcertificateapplier
   scope: Namespaced
   versions:
   - name: v1
@@ -26,58 +26,48 @@ spec:
             type: object
           spec:
             properties:
-              certificates:
+              certificatesToCreate:
                 items:
                   properties:
-                    caCert:
-                      default: ca.crt
+                    application:
                       type: string
+                    dnses:
+                      items:
+                        type: string
+                      type: array
                     gitPath:
                       type: string
                     name:
                       type: string
-                    namespace:
-                      type: string
                   required:
+                  - application
+                  - dnses
                   - gitPath
                   - name
-                  - namespace
                   type: object
                 type: array
-              expirationThreshold:
-                default: 720h
-                type: string
             required:
-            - certificates
-            - expirationThreshold
+            - certificatesToCreate
             type: object
           status:
             properties:
               certificates:
                 items:
                   properties:
-                    caCert:
-                      type: string
-                    expiry:
-                      type: string
-                    gitPath:
-                      type: string
-                    lastChecked:
-                      format: date-time
-                      type: string
                     message:
                       type: string
                     name:
                       type: string
-                    namespace:
-                      type: string
                     status:
                       type: string
                   required:
+                  - message
                   - name
-                  - namespace
+                  - status
                   type: object
                 type: array
+              gitPR:
+                type: string
             required:
             - certificates
             type: object
