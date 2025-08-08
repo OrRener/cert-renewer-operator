@@ -2,7 +2,10 @@ package controller
 
 import (
 	"crypto/tls"
+	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -13,6 +16,7 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
+var ErrNoChanges = errors.New("no-changes")
 var customClient = &http.Client{
 	Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{
@@ -23,11 +27,7 @@ var customClient = &http.Client{
 
 var projectPath = "compute/ocpbm-cluster-config"
 
-var branchName = "test-auto-cert-renewal"
-
-var branchRef = plumbing.NewBranchReferenceName(branchName)
-
-func (r *OCPCertificateApplierReconciler) cloneRepo() error {
+func cloneRepo() error {
 	_, err := git.PlainClone("/repo", false, &git.CloneOptions{
 		URL: "https://gitlab.med.one/compute/ocpbm-cluster-config.git",
 		Auth: &githttp.BasicAuth{
@@ -42,7 +42,9 @@ func (r *OCPCertificateApplierReconciler) cloneRepo() error {
 	return nil
 }
 
-func (r *OCPCertificateApplierReconciler) CheckoutBranch() (*git.Repository, *git.Worktree, error) {
+func CheckoutBranch(branchName string) (*git.Repository, *git.Worktree, error) {
+
+	var branchRef = plumbing.NewBranchReferenceName(branchName)
 
 	repo, err := git.PlainOpen("/repo")
 	if err != nil {
@@ -64,7 +66,9 @@ func (r *OCPCertificateApplierReconciler) CheckoutBranch() (*git.Repository, *gi
 	return repo, wt, nil
 }
 
-func (r *OCPCertificateApplierReconciler) commitAndPushChanges(wt *git.Worktree, repo *git.Repository) error {
+func commitAndPushChanges(wt *git.Worktree, repo *git.Repository, branchName string) error {
+
+	var branchRef = plumbing.NewBranchReferenceName(branchName)
 
 	err := wt.AddWithOptions(&git.AddOptions{All: true})
 	if err != nil {
@@ -79,6 +83,9 @@ func (r *OCPCertificateApplierReconciler) commitAndPushChanges(wt *git.Worktree,
 		},
 	})
 	if err != nil {
+		if err == git.NoErrAlreadyUpToDate {
+			return ErrNoChanges
+		}
 		return err
 	}
 	err = repo.Push(&git.PushOptions{
@@ -103,19 +110,18 @@ func (r *OCPCertificateApplierReconciler) commitAndPushChanges(wt *git.Worktree,
 	return nil
 }
 
-func (r *OCPCertificateApplierReconciler) createMergeRequest() (string, error) {
+func createMergeRequest(sourceBranch string) (string, error) {
 	git, err := gitlab.NewClient("yMSEgyBKpAsjT_ziK2no", gitlab.WithBaseURL("https://gitlab.med.one/api/v4"), gitlab.WithHTTPClient(customClient))
 	if err != nil {
 		return "", err
 	}
 
 	title := "Auto-renewed certs"
-	sourceBranch := "test-auto-cert-renewal"
 	targetBranch := "main"
 	description := "This MR was auto-created to renew certificates."
 	removeSourceBranch := true
 
-	mrExists, IID, err := r.DoesMRExist(git, sourceBranch, targetBranch)
+	mrExists, IID, err := DoesMRExist(git, sourceBranch, targetBranch)
 	if err != nil {
 		return "", err
 	}
@@ -147,7 +153,7 @@ func (r *OCPCertificateApplierReconciler) createMergeRequest() (string, error) {
 	return mr.WebURL, nil
 }
 
-func (r *OCPCertificateApplierReconciler) DoesMRExist(git *gitlab.Client, sourceBranch string, targetBranch string) (bool, int, error) {
+func DoesMRExist(git *gitlab.Client, sourceBranch string, targetBranch string) (bool, int, error) {
 
 	mrs, _, err := git.MergeRequests.ListProjectMergeRequests(projectPath, &gitlab.ListProjectMergeRequestsOptions{
 		SourceBranch: &sourceBranch,
@@ -161,4 +167,28 @@ func (r *OCPCertificateApplierReconciler) DoesMRExist(git *gitlab.Client, source
 		return false, 0, nil
 	}
 	return true, mrs[0].IID, nil
+}
+
+func DeleteDirContents(path string) error {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		path := filepath.Join(path, entry.Name())
+		err := os.RemoveAll(path)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func WriteToFile(path string, content []byte) error {
+	err := os.WriteFile(path, content, 0600)
+	if err != nil {
+		return err
+	}
+	return nil
 }

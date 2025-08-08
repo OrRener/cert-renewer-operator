@@ -3,12 +3,13 @@ package controller
 import (
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"sort"
 	"strings"
 
 	certv1 "github.com/OrRener/cert-renewer-operator/api/v1"
@@ -21,10 +22,9 @@ import (
 )
 
 type SignedCeritifactes struct {
-	Name    string
-	Cert    []byte
-	Key     []byte
-	GitPath string
+	Name string
+	Cert []byte
+	Key  []byte
 }
 
 func (r *OCPCertificateApplierReconciler) GetInstance(ctx context.Context, name string, namespace string) (*certv1.OCPCertificateApplier, error) {
@@ -36,27 +36,31 @@ func (r *OCPCertificateApplierReconciler) GetInstance(ctx context.Context, name 
 	return instance, nil
 }
 
-func (r *OCPCertificateApplierReconciler) CreateSecret(ctx context.Context, cert SignedCeritifactes) error {
+func (r *OCPCertificateApplierReconciler) CreateSecret(ctx context.Context, signedCert SignedCeritifactes, cert certv1.TargetSecret) error {
 	log := logf.FromContext(ctx)
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "signed-" + cert.Name,
+			Name:      "signed-" + signedCert.Name,
 			Namespace: "ocp-controller-cert-renewer",
 			Labels: map[string]string{
-				"cert.compute.io/cert-name": cert.Name,
+				"cert.compute.io/cert-name": signedCert.Name,
+				"cert.compute.io/domains":   domainsToLabelValue(cert.Dnses),
 				"cert.compute.io/git-path":  strings.ReplaceAll(cert.GitPath, "/", "."),
 			},
 		},
 		Type: corev1.SecretTypeTLS,
 		Data: map[string][]byte{
-			corev1.TLSCertKey:       cert.Cert,
-			corev1.TLSPrivateKeyKey: cert.Key,
+			corev1.TLSCertKey:       signedCert.Cert,
+			corev1.TLSPrivateKeyKey: signedCert.Key,
 		},
 	}
 	err := r.Create(ctx, secret)
 	if err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			return nil
+			err = r.Update(ctx, secret)
+			if err != nil {
+				return err
+			}
 		} else {
 			log.Error(err, "Failed to create secret", "secret:", secret)
 			return err
@@ -100,10 +104,9 @@ func (r *OCPCertificateApplierReconciler) CreateNewCertificate(ctx context.Conte
 		return SignedCeritifactes{}, certificateStatus, err
 	} else {
 		SignedCert = SignedCeritifactes{
-			Name:    cert.Name,
-			Cert:    crt,
-			Key:     key,
-			GitPath: cert.GitPath,
+			Name: cert.Name,
+			Cert: crt,
+			Key:  key,
 		}
 		certificateStatus = certv1.CertificateStatus{
 			Name:    cert.Name,
@@ -170,30 +173,6 @@ func (r *OCPCertificateApplierReconciler) GenerateNewCertificate(instance *certv
 	return crt, key, nil
 }
 
-func (r *OCPCertificateApplierReconciler) WriteToFile(path string, content []byte) error {
-	err := os.WriteFile(path, content, 0600)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (r *OCPCertificateApplierReconciler) DeleteDirContents(path string) error {
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		path := filepath.Join(path, entry.Name())
-		err := os.RemoveAll(path)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (r *OCPCertificateApplierReconciler) UpdateCertificateStatus(ctx context.Context, instance *certv1.OCPCertificateApplier) error {
 
 	err := r.Status().Update(ctx, instance)
@@ -258,4 +237,20 @@ func (r *OCPCertificateApplierReconciler) ExtractCertificateStatusFromName(name 
 	return certv1.CertificateStatus{
 		Status: "NonExistant",
 	}
+}
+
+func domainsToLabelValue(domains []string) string {
+	sort.Strings(domains)
+	joinedDomains := strings.Join(domains, ",")
+
+	hasher := sha256.New()
+	hasher.Write([]byte(joinedDomains))
+	hash := hasher.Sum(nil)
+
+	hashString := hex.EncodeToString(hash)
+	return hashString[0:32]
+}
+
+func (r *OCPCertificateApplierReconciler) isDesiredDomains(cert certv1.TargetSecret, secret *corev1.Secret) bool {
+	return domainsToLabelValue(cert.Dnses) == secret.Labels["cert.compute.io/domains"]
 }

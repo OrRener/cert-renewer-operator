@@ -57,7 +57,7 @@ type AboutToExpireCertificates struct {
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificatetrackers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificatetrackers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificatetrackers/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -102,10 +102,10 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 				Message:   status.Message,
 				Status:    status.Status,
 				Expiry:    status.Expiry,
-				GitPath:   status.GitPath,
+				GitPath:   cert.GitPath,
 			})
-			statuses = append(statuses, status)
 		}
+		statuses = append(statuses, status)
 	}
 	instance.Status.Certificates = statuses
 	err = r.UpdateObjectStatus(ctx, instance)

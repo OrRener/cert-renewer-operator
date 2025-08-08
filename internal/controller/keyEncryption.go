@@ -12,7 +12,7 @@ import (
 	"go.mozilla.org/pkcs7"
 )
 
-func (r *OCPCertificateApplierReconciler) getCertificate(certPath string) (*x509.Certificate, error) {
+func getCertificate(certPath string) (*x509.Certificate, error) {
 	certPEM, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read certificate file: %w", err)
@@ -31,7 +31,7 @@ func (r *OCPCertificateApplierReconciler) getCertificate(certPath string) (*x509
 	return cert, nil
 }
 
-func (r *OCPCertificateApplierReconciler) wrapBase64(s string, lineLength int) string {
+func wrapBase64(s string, lineLength int) string {
 	var builder strings.Builder
 	for i := 0; i < len(s); i += lineLength {
 		end := i + lineLength
@@ -44,11 +44,11 @@ func (r *OCPCertificateApplierReconciler) wrapBase64(s string, lineLength int) s
 	return builder.String()
 }
 
-func (r *OCPCertificateApplierReconciler) encryptKey(key []byte) ([]byte, error) {
+func encryptKey(key []byte) ([]byte, error) {
 
 	certFile := "/repo/misc/certs/cert.pem"
 
-	cert, err := r.getCertificate(certFile)
+	cert, err := getCertificate(certFile)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (r *OCPCertificateApplierReconciler) encryptKey(key []byte) ([]byte, error)
 
 	encoded := base64.StdEncoding.EncodeToString(encrypted)
 
-	wrappedEncoded := r.wrapBase64(encoded, 64)
+	wrappedEncoded := wrapBase64(encoded, 64)
 
 	var buf bytes.Buffer
 	buf.WriteString("MIME-Version: 1.0\n")

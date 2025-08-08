@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"strings"
 
 	certv1 "github.com/OrRener/cert-renewer-operator/api/v1"
 	legolog "github.com/go-acme/lego/v4/log"
@@ -35,12 +34,13 @@ func (n *noopLogger) Warnf(format string, args ...interface{})  {}
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificateappliers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificateappliers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificateappliers/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update
 
 func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	legolog.Logger = &noopLogger{}
 	statuses := []certv1.CertificateStatus{}
-	count := 0
+	branch := "test-auto-cert-renewal"
+	signingNeeded := false
 	log := logf.FromContext(ctx)
 	instance, err := r.GetInstance(ctx, req.Name, req.Namespace)
 	if err != nil {
@@ -52,14 +52,17 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 	}
 	for _, cert := range instance.Spec.CertificatesToCreate {
 		status := r.ExtractCertificateStatusFromName(cert.Name, instance)
-		switch status.Status {
-		case "NonExistant", "Error":
-			certSpec := r.ExtractCertificateSpecFromName(cert.Name, instance)
-			SignedCeritificate, CertificateStatus, err := r.CreateNewCertificate(ctx, instance, certSpec)
+		secret, exists, err := r.getSecret(ctx, cert.Name)
+		if err != nil {
+			log.Error(err, "Couldn't lookup secret", "name:", "signed-"+cert.Name)
+		}
+		if !exists || !r.isDesiredDomains(cert, secret) {
+			signingNeeded = true
+			SignedCeritificate, CertificateStatus, err := r.CreateNewCertificate(ctx, instance, cert)
 			if err != nil {
 				log.Error(err, "failed to sign certificate", "certificate:", cert.Name)
 			} else {
-				err = r.CreateSecret(ctx, SignedCeritificate)
+				err = r.CreateSecret(ctx, SignedCeritificate, cert)
 				if err != nil {
 					log.Error(err, "failed to create secret for certificate", "cert", cert.Name)
 					CertificateStatus.Status = "Error"
@@ -67,16 +70,10 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 				}
 			}
 			statuses = append(statuses, CertificateStatus)
-		case "Completed":
-			count++
-			statuses = append(statuses, status)
-		case "Signed":
+
+		} else {
 			statuses = append(statuses, status)
 		}
-	}
-	if count == len(instance.Spec.CertificatesToCreate) {
-		log.Info("Complete")
-		return ctrl.Result{}, err
 	}
 	instance.Status.Certificates = statuses
 	err = r.UpdateCertificateStatus(ctx, instance)
@@ -88,19 +85,22 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 		log.Error(err, "Some certificates are in a failed state, cannot proceed", "instance", instance)
 		return ctrl.Result{}, errors.New("some certificates failed")
 	}
-	log.Info("Successfully signed certs.", "instance:", instance)
-	err = r.DeleteDirContents("repo")
+	if signingNeeded {
+		log.Info("Successfully signed certs.", "instance:", instance)
+	}
+	statuses = []certv1.CertificateStatus{}
+	err = DeleteDirContents("repo")
 	if err != nil {
 		log.Error(err, "Failed to delete repo contents", "instance:", instance)
 		return ctrl.Result{}, err
 	}
-	err = r.cloneRepo()
+	err = cloneRepo()
 	if err != nil {
 		log.Error(err, "Failed to clone repo ocpbm-cluster-config", "instance:", instance)
 		return ctrl.Result{}, err
 	}
 	log.Info("Successfully cloned git repo.", "instance:", instance)
-	repo, wt, err := r.CheckoutBranch()
+	repo, wt, err := CheckoutBranch(branch)
 	if err != nil {
 		log.Error(err, "Failed to checkout ocpbm-cluster-config", "instance:", instance)
 		return ctrl.Result{}, err
@@ -118,20 +118,20 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 			continue
 		}
 		cert := SignedCeritifactes{
-			Name:    certSecret.Labels["cert.compute.io/cert-name"],
-			GitPath: "/" + strings.ReplaceAll(certSecret.Labels["cert.compute.io/git-path"], ".", "/"),
-			Cert:    certSecret.Data["tls.crt"],
-			Key:     certSecret.Data["tls.key"],
+			Name: certSecret.Labels["cert.compute.io/cert-name"],
+			Cert: certSecret.Data["tls.crt"],
+			Key:  certSecret.Data["tls.key"],
 		}
-		encryptedKey, err := r.encryptKey(cert.Key)
+		encryptedKey, err := encryptKey(cert.Key)
 		if err != nil {
 			log.Error(err, "failed to encrypt key for certificate", "cert:", cert.Name)
 			status := r.CreateCertStatus(cert.Name, err.Error(), "Error")
 			statuses = append(statuses, status)
 			continue
 		}
-		r.WriteToFile(filepath.Join("/repo", cert.GitPath, "tls.key.enc"), encryptedKey)
-		r.WriteToFile(filepath.Join("/repo", cert.GitPath, "tls.crt"), cert.Cert)
+		statuses = append(statuses, r.CreateCertStatus(cert.Name, "Key successfully encrypted", "Signed"))
+		WriteToFile(filepath.Join("/repo", certificate.GitPath, "tls.key.enc"), encryptedKey)
+		WriteToFile(filepath.Join("/repo", certificate.GitPath, "tls.crt"), cert.Cert)
 	}
 	instance.Status.Certificates = statuses
 	err = r.UpdateCertificateStatus(ctx, instance)
@@ -144,13 +144,16 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, errors.New("some certificates failed")
 	}
 	log.Info("Successfully encrypted keys.", "instance:", instance)
-	err = r.commitAndPushChanges(wt, repo)
+	err = commitAndPushChanges(wt, repo, branch)
 	if err != nil {
+		if err == ErrNoChanges {
+			return ctrl.Result{}, nil
+		}
 		log.Error(err, "Failed to commit changes", "instance:", instance)
 		return ctrl.Result{}, err
 	}
 	log.Info("Successfully commited and pushed changes.", "instance:", instance)
-	mr, err := r.createMergeRequest()
+	mr, err := createMergeRequest("auto-cert-renewal")
 	if err != nil {
 		log.Error(err, "Failed to create MR", "instance:", instance)
 		return ctrl.Result{}, err
@@ -172,6 +175,7 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 		log.Error(err, "failed to update status at stage Completed", "instance:", instance)
 		return ctrl.Result{}, err
 	}
+
 	return ctrl.Result{}, nil
 }
 
