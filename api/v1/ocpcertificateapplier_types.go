@@ -22,20 +22,23 @@ import (
 
 type TargetSecret struct {
 	Name        string   `json:"name"`
-	Application string   `json:"application"`
+	Application string   `json:"application,omitempty"`
 	Dnses       []string `json:"dnses"`
-	GitPath     string   `json:"gitPath"`
+	GitPath     string   `json:"gitPath,omitempty"`
 }
 
 type CertificateStatus struct {
-	Name    string `json:"name"`
-	Status  string `json:"status"`  // e.g. "Ready", "NotReady", "Failed"
-	Message string `json:"message"` // Additional information about the certificate status
+	Name            string `json:"name"`
+	Status          string `json:"status"`  // e.g. "Ready", "NotReady", "Failed"
+	Message         string `json:"message"` // Additional information about the certificate status
+	SecretName      string `json:"secretName,omitempty"`
+	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 
 // OCPCertificateApplierSpec defines the desired state of OCPCertificateApplier
 type OCPCertificateApplierSpec struct {
 	CertificatesToCreate []TargetSecret `json:"certificatesToCreate"`
+	GitBranch            string         `json:"gitBranch"`
 }
 
 // OCPCertificateApplierStatus defines the observed state of OCPCertificateApplier.

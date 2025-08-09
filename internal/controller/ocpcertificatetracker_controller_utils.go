@@ -173,6 +173,7 @@ func (r *OCPCertificateTrackerReconciler) CreateOCPCertificateApplier(ctx contex
 		},
 		Spec: certv1.OCPCertificateApplierSpec{
 			CertificatesToCreate: certInputs,
+			GitBranch:            "test-auto-renew-certs",
 		},
 	}
 	existing := &certv1.OCPCertificateApplier{}

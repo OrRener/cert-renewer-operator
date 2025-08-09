@@ -58,6 +58,9 @@ type AboutToExpireCertificates struct {
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificatetrackers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificatetrackers/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update
+// +kubebuilder:rbac:groups=cert.compute.io,resources=ocpnewcertificaterequests,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cert.compute.io,resources=ocpnewcertificaterequests/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=cert.compute.io,resources=ocpnewcertificaterequests/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

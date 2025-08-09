@@ -211,11 +211,13 @@ func (r *OCPCertificateApplierReconciler) DeleteSelf(ctx context.Context, instan
 	return nil
 }
 
-func (r *OCPCertificateApplierReconciler) CreateCertStatus(name, message, status string) certv1.CertificateStatus {
+func (r *OCPCertificateApplierReconciler) CreateCertStatus(name, message, status, secretName, secretNamespace string) certv1.CertificateStatus {
 	return certv1.CertificateStatus{
-		Name:    name,
-		Status:  status,
-		Message: message,
+		Name:            name,
+		Status:          status,
+		Message:         message,
+		SecretName:      secretName,
+		SecretNamespace: secretNamespace,
 	}
 }
 

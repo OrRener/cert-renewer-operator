@@ -26,14 +26,6 @@ type CertificateRequest struct {
 	GitPath string   `json:"gitPath,omitempty"`
 }
 
-type CertificateRequestStatus struct {
-	Name            string `json:"name"`
-	Status          string `json:"status"`
-	Message         string `json:"message"`
-	SecretName      string `json:"secretName"`
-	SecretNamespace string `json:"secretNamespace"`
-}
-
 // OCPNewCertificateRequestSpec defines the desired state of OCPNewCertificateRequest
 type OCPNewCertificateRequestSpec struct {
 	Certificates []CertificateRequest `json:"certificates"`
@@ -41,8 +33,7 @@ type OCPNewCertificateRequestSpec struct {
 
 // OCPNewCertificateRequestStatus defines the observed state of OCPNewCertificateRequest.
 type OCPNewCertificateRequestStatus struct {
-	Certificates []CertificateRequestStatus `json:"certificates"`
-	GitMR        string                     `json:"gitMR"`
+	Message string `json:"message"`
 }
 
 // +kubebuilder:object:root=true

@@ -47,32 +47,10 @@ spec:
             type: object
           status:
             properties:
-              certificates:
-                items:
-                  properties:
-                    message:
-                      type: string
-                    name:
-                      type: string
-                    secretName:
-                      type: string
-                    secretNamespace:
-                      type: string
-                    status:
-                      type: string
-                  required:
-                  - message
-                  - name
-                  - secretName
-                  - secretNamespace
-                  - status
-                  type: object
-                type: array
-              gitMR:
+              message:
                 type: string
             required:
-            - certificates
-            - gitMR
+            - message
             type: object
         required:
         - spec

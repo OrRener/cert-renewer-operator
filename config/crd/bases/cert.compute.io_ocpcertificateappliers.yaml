@@ -40,14 +40,15 @@ spec:
                     name:
                       type: string
                   required:
-                  - application
                   - dnses
-                  - gitPath
                   - name
                   type: object
                 type: array
+              gitBranch:
+                type: string
             required:
             - certificatesToCreate
+            - gitBranch
             type: object
           status:
             properties:
@@ -57,6 +58,10 @@ spec:
                     message:
                       type: string
                     name:
+                      type: string
+                    secretName:
+                      type: string
+                    secretNamespace:
                       type: string
                     status:
                       type: string
