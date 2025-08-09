@@ -5,9 +5,21 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
   - cert.compute.io
   resources:
+  - ocpcertificateappliers
   - ocpcertificatetrackers
+  - ocpnewcertificaterequests
   verbs:
   - create
   - delete
@@ -19,22 +31,18 @@ rules:
 - apiGroups:
   - cert.compute.io
   resources:
+  - ocpcertificateappliers/finalizers
   - ocpcertificatetrackers/finalizers
+  - ocpnewcertificaterequests/finalizers
   verbs:
   - update
 - apiGroups:
   - cert.compute.io
   resources:
+  - ocpcertificateappliers/status
   - ocpcertificatetrackers/status
+  - ocpnewcertificaterequests/status
   verbs:
   - get
   - patch
   - update
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch

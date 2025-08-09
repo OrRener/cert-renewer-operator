@@ -1,0 +1,8 @@
+# If it's the first zone
+oc patch dns.operator/default --type=json -p='[{"op": "replace", "path": "/spec/servers", "value": [{"name": "testzone.local", "zones": ["testzone.local"], "forwardPlugin": {"upstreams": ["172.30.209.91:53"]}}]}]'
+
+# If its not
+oc patch dns.operator/default --type=json -p='[{"op": "add", "path": "/spec/servers/-", "value": {"name": "testzone.local", "zones": ["testzone.local"], "forwardPlugin": {"upstreams": ["172.30.209.91:53"]}}}]'
+
+# Make sure to run after patch
+oc rollout restart daemonset dns-default -n openshift-dns

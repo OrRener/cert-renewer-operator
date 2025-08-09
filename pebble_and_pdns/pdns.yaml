@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pdns
+  template:
+    metadata:
+      labels:
+        app: pdns
+    spec:
+      initContainers:
+        - name: init-pdns-db
+          image: quay.io/orrener1337/pdns
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ ! -s /data/pdns.sqlite3 ]; then
+                cp /etc/pdns/pdns.sqlite3 /data/
+              fi
+          volumeMounts:
+            - name: pdns-data
+              mountPath: /data
+      containers:
+        - name: pdns
+          image: quay.io/orrener1337/pdns
+          ports:
+            - containerPort: 53
+              protocol: UDP
+            - containerPort: 53
+              protocol: TCP
+            - containerPort: 8082
+              protocol: TCP
+          volumeMounts:
+            - name: pdns-socket
+              mountPath: /var/run/pdns
+            - name: pdns-config
+              mountPath: /etc/pdns
+            - name: pdns-data
+              mountPath: /data
+      volumes:
+        - name: pdns-socket
+          emptyDir: {}
+        - name: pdns-config
+          configMap:
+            name: pdns-config
+        - name: pdns-data
+          PersistentVolumeClaim:
+            claimName: test-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pdns
+  namespace: ocp-controller-cert-renewer
+spec:
+  clusterIP: 172.30.209.91
+  selector:
+    app: pdns
+  ports:
+    - name: dns-udp
+      port: 53
+      protocol: UDP
+      targetPort: 8053
+    - name: dns-tcp
+      port: 53
+      protocol: TCP
+      targetPort: 8053
+    - name: api
+      port: 8082
+      protocol: TCP
+      targetPort: 8082
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pdns-config
+data:
+  pdns.conf: |
+    launch=gsqlite3
+    gsqlite3-database=/data/pdns.sqlite3
+
+    api=yes
+    api-key=test
+    local-port=8053
+
+    webserver=yes
+    webserver-address=0.0.0.0
+    webserver-port=8082
+    webserver-allow-from=127.0.0.1,::1,0.0.0.0/0
+
+
+    loglevel=9
+    log-dns-queries=yes
+    log-dns-details=yes
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: localblock
+  volumeMode: Block
+  resources:
+    requests:
+      storage: 10Gi
