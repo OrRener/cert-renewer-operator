@@ -31,3 +31,5 @@ go.work
 
 # Pull secret
 *pull*.json
+redhat-pull.json
+merged-pull-secret.json
