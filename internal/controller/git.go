@@ -27,12 +27,12 @@ var customClient = &http.Client{
 
 var projectPath = "compute/ocpbm-cluster-config"
 
-func cloneRepo() error {
+func cloneRepo(password string) error {
 	_, err := git.PlainClone("/repo", false, &git.CloneOptions{
 		URL: "https://gitlab.med.one/compute/ocpbm-cluster-config.git",
 		Auth: &githttp.BasicAuth{
 			Username: "orrener",
-			Password: "yMSEgyBKpAsjT_ziK2no",
+			Password: password,
 		},
 		InsecureSkipTLS: true,
 	})
@@ -66,7 +66,7 @@ func CheckoutBranch(branchName string) (*git.Repository, *git.Worktree, error) {
 	return repo, wt, nil
 }
 
-func commitAndPushChanges(wt *git.Worktree, repo *git.Repository, branchName string) error {
+func commitAndPushChanges(wt *git.Worktree, repo *git.Repository, branchName, password string) error {
 
 	var branchRef = plumbing.NewBranchReferenceName(branchName)
 
@@ -95,7 +95,7 @@ func commitAndPushChanges(wt *git.Worktree, repo *git.Repository, branchName str
 		},
 		Auth: &githttp.BasicAuth{
 			Username: "orrener",
-			Password: "yMSEgyBKpAsjT_ziK2no",
+			Password: password,
 		},
 		InsecureSkipTLS: true,
 		Force:           true,
