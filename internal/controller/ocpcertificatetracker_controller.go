@@ -27,7 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	certv1 "github.com/OrRener/cert-renewer-operator/api/v1"
-	corev1 "k8s.io/api/core/v1"
 )
 
 // OCPCertificateTrackerReconciler reconciles a OCPCertificateTracker object
@@ -36,28 +35,16 @@ type OCPCertificateTrackerReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-type CertInfo struct {
+type AboutToExpireCertificates struct {
 	Name      string
 	Namespace string
-	Secret    corev1.Secret
-	CaCert    string `json:"caCert,omitempty"`
-	Message   string
-	Status    string `json:"status,omitempty"`
-	Expiry    string `json:"expiry,omitempty"`
-	GitPath   string `json:"gitPath"`
-}
-
-type AboutToExpireCertificates struct {
-	Name        string
-	Namespace   string
-	Application string
-	GitPath     string
+	Domains   []string
 }
 
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificatetrackers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificatetrackers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificatetrackers/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpnewcertificaterequests,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpnewcertificaterequests/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpnewcertificaterequests/finalizers,verbs=update
@@ -75,7 +62,7 @@ type AboutToExpireCertificates struct {
 func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	statuses := []certv1.CertificatesStatusStruct{}
-	aboutToExpire := []CertInfo{}
+	aboutToExpire := []AboutToExpireCertificates{}
 
 	instance, err := r.FetchInstance(ctx, req.Name, req.Namespace)
 	if err != nil {
@@ -84,29 +71,37 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	for _, cert := range instance.Spec.Certificates {
-		status, secret, err := r.ReadSecret(cert, ctx, instance)
+		secret, exists, err := r.getSecret(cert, ctx)
+		if !exists {
+			if cert.Domains != nil {
+				aboutToExpire = append(aboutToExpire, r.createAboutToExpireStruct(cert.Name, cert.Namespace, cert.Domains))
+				statuses = append(statuses, r.CreateCertStatus("NewCert", "New certificate to create", "", cert.Name, cert.Namespace))
+				continue
+			} else {
+				log.Error(err, "secret doesn't exist", "name:", cert.Name)
+				statuses = append(statuses, r.CreateCertStatus("Error", err.Error(), "", cert.Name, cert.Namespace))
+				continue
+			}
+		}
 		if err != nil {
 			log.Error(err, "Failed to fetch secret", "instance:", instance)
-			statuses = append(statuses, status)
+			statuses = append(statuses, r.CreateCertStatus("Error", err.Error(), "", cert.Name, cert.Namespace))
 			continue
 		}
-		status, err = r.UpdateExpiryStatus(ctx, cert, instance, secret)
+		status, err := r.UpdateExpiryStatus(ctx, cert, instance, secret)
 		if err != nil {
 			log.Error(err, "Failed to analyze certificate", "certificate", cert.Name)
-			statuses = append(statuses, status)
+			statuses = append(statuses, r.CreateCertStatus("Error", err.Error(), "", cert.Name, cert.Namespace))
 			continue
 		}
 		if status.Status == "About to expire" {
-			aboutToExpire = append(aboutToExpire, CertInfo{
-				Name:      status.Name,
-				Namespace: status.Namespace,
-				Secret:    *secret,
-				CaCert:    status.CaCert,
-				Message:   status.Message,
-				Status:    status.Status,
-				Expiry:    status.Expiry,
-				GitPath:   cert.GitPath,
-			})
+			domains, err := r.GetCertificateDomains(secret.Data["tls.crt"])
+			if err != nil {
+				log.Error(err, "couldn't get certificate domains", "certificate:", cert.Name)
+				statuses = append(statuses, r.CreateCertStatus("Error", err.Error(), "", cert.Name, cert.Namespace))
+				continue
+			}
+			aboutToExpire = append(aboutToExpire, r.createAboutToExpireStruct(cert.Name, cert.Namespace, domains))
 		}
 		statuses = append(statuses, status)
 	}
@@ -123,7 +118,7 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 	}
 	log.Info("Successfully updated certs.", "instance:", instance)
 	if len(aboutToExpire) == 0 {
-		log.Info("No certificates about to expire")
+		log.Info("No certificates about to expire", "instance:", instance)
 	} else {
 		err = r.CreateOCPCertificateApplier(ctx, aboutToExpire, instance)
 		if err != nil {

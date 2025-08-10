@@ -21,30 +21,25 @@ import (
 )
 
 type TargetSecret struct {
-	Name        string   `json:"name"`
-	Application string   `json:"application,omitempty"`
-	Dnses       []string `json:"dnses"`
-	GitPath     string   `json:"gitPath,omitempty"`
+	Name      string   `json:"name"`
+	Namespace string   `json:"namespace"`
+	Dnses     []string `json:"dnses"`
 }
 
 type CertificateStatus struct {
-	Name            string `json:"name"`
-	Status          string `json:"status"`  // e.g. "Ready", "NotReady", "Failed"
-	Message         string `json:"message"` // Additional information about the certificate status
-	SecretName      string `json:"secretName,omitempty"`
-	SecretNamespace string `json:"secretNamespace,omitempty"`
+	Name    string `json:"name"`
+	Status  string `json:"status"`  // e.g. "Ready", "NotReady", "Failed"
+	Message string `json:"message"` // Additional information about the certificate status
 }
 
 // OCPCertificateApplierSpec defines the desired state of OCPCertificateApplier
 type OCPCertificateApplierSpec struct {
 	CertificatesToCreate []TargetSecret `json:"certificatesToCreate"`
-	GitBranch            string         `json:"gitBranch"`
 }
 
 // OCPCertificateApplierStatus defines the observed state of OCPCertificateApplier.
 type OCPCertificateApplierStatus struct {
 	Certificates []CertificateStatus `json:"certificates"`
-	GitPR        string              `json:"gitPR,omitempty"`
 }
 
 // +kubebuilder:object:root=true

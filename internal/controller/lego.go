@@ -87,6 +87,7 @@ func (r *MyUser) SetDNSProvider(client *lego.Client, pdnsProvider *pdns.DNSProvi
 func (r *MyUser) ObtainCertificates(client *lego.Client, domains []string) ([]byte, []byte, error) {
 	request := certificate.ObtainRequest{
 		Domains: domains,
+		Bundle:  true,
 	}
 
 	certificates, err := client.Certificate.Obtain(request)

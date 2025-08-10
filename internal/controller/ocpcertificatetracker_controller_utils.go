@@ -91,50 +91,43 @@ func (r *OCPCertificateTrackerReconciler) CheckIfValidCertificate(ctx context.Co
 	return "Valid", nil
 }
 
-func (r *OCPCertificateTrackerReconciler) ReadSecret(cert certv1.CertificatesStruct, ctx context.Context, instance *certv1.OCPCertificateTracker) (certv1.CertificatesStatusStruct, *corev1.Secret, error) {
-	var Message string
-	var Status string
-	status := certv1.CertificatesStatusStruct{}
+func (r *OCPCertificateTrackerReconciler) getSecret(cert certv1.CertificatesStruct, ctx context.Context) (*corev1.Secret, bool, error) {
 	secret := &corev1.Secret{}
-	secretKey := types.NamespacedName{
+	err := r.Get(ctx, client.ObjectKey{
 		Name:      cert.Name,
 		Namespace: cert.Namespace,
-	}
-	err := r.Client.Get(ctx, secretKey, secret)
-	if err != nil {
-		Message = fmt.Sprintf("Failed to get secret %s in namespace %s: %v", cert.Name, cert.Namespace, err)
-		Status = "Error"
-		status = r.CreateCertStatus(Status, Message, "", cert.Name, cert.Namespace, "")
-	}
-	return status, secret, err
-}
+	}, secret)
 
-func (r *OCPCertificateTrackerReconciler) GetApplication(cert CertInfo) string {
-	app := cert.Secret.Labels["app.kubernetes.io/instance"]
-	return app
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("failed to get secret: %w", err)
+	}
+	return secret, true, nil
 }
 
 func (r *OCPCertificateTrackerReconciler) UpdateExpiryStatus(ctx context.Context, cert certv1.CertificatesStruct, instance *certv1.OCPCertificateTracker, secret *corev1.Secret) (certv1.CertificatesStatusStruct, error) {
 	var Status string = "Error"
-	certData, exists := secret.Data[cert.CaCert]
+	certData, exists := secret.Data["tls.crt"]
 	if !exists {
 		err := errors.New("data not found")
-		return r.CreateCertStatus(Status, err.Error(), "", cert.Name, cert.Namespace, cert.CaCert), err
+		return r.CreateCertStatus(Status, err.Error(), "", cert.Name, cert.Namespace), err
 	}
 	expiration, err := r.FindExpirationOfCertificate(ctx, certData)
 	if err != nil {
 		logf.FromContext(ctx).Error(err, "Failed to find certificate expiration", "name", cert.Name, "namespace", cert.Namespace)
-		return r.CreateCertStatus(Status, err.Error(), "", cert.Name, cert.Namespace, cert.CaCert), errors.New("couldn't find expiration date")
+		return r.CreateCertStatus(Status, err.Error(), "", cert.Name, cert.Namespace), errors.New("couldn't find expiration date")
 	}
 	Status, err = r.CheckIfValidCertificate(ctx, expiration, instance)
 	if err != nil {
-		return r.CreateCertStatus(Status, err.Error(), "", cert.Name, cert.Namespace, cert.CaCert), err
+		return r.CreateCertStatus(Status, err.Error(), "", cert.Name, cert.Namespace), err
 	}
-	Message := fmt.Sprintf("Certificate %s in secret %s in namespace %s expires at %s", cert.CaCert, cert.Name, cert.Namespace, expiration)
+	Message := fmt.Sprintf("Certificate %s in namespace %s expires at %s", cert.Name, cert.Namespace, expiration)
 	Expiry := expiration
 
 	logf.FromContext(ctx).Info("Fetched certificates expiry details", "certificate", cert.Name)
-	return r.CreateCertStatus(Status, Message, Expiry, cert.Name, cert.Namespace, cert.CaCert), nil
+	return r.CreateCertStatus(Status, Message, Expiry, cert.Name, cert.Namespace), nil
 }
 
 func (r *OCPCertificateTrackerReconciler) GetCertificateDomains(certData []byte) ([]string, error) {
@@ -154,16 +147,13 @@ func (r *OCPCertificateTrackerReconciler) GetCertificateDomains(certData []byte)
 	return domains, nil
 }
 
-func (r *OCPCertificateTrackerReconciler) CreateOCPCertificateApplier(ctx context.Context, AboutToExpireCerts []CertInfo, instance *certv1.OCPCertificateTracker) error {
+func (r *OCPCertificateTrackerReconciler) CreateOCPCertificateApplier(ctx context.Context, AboutToExpireCerts []AboutToExpireCertificates, instance *certv1.OCPCertificateTracker) error {
 	var certInputs []certv1.TargetSecret
 	for _, cert := range AboutToExpireCerts {
-		domains, _ := r.GetCertificateDomains(cert.Secret.Data[cert.CaCert])
-		application := r.GetApplication(cert)
 		certInputs = append(certInputs, certv1.TargetSecret{
-			Name:        cert.Name,
-			Application: application,
-			Dnses:       domains,
-			GitPath:     cert.GitPath,
+			Name:      cert.Name,
+			Namespace: cert.Namespace,
+			Dnses:     cert.Domains,
 		})
 	}
 	certCR := &certv1.OCPCertificateApplier{
@@ -173,7 +163,6 @@ func (r *OCPCertificateTrackerReconciler) CreateOCPCertificateApplier(ctx contex
 		},
 		Spec: certv1.OCPCertificateApplierSpec{
 			CertificatesToCreate: certInputs,
-			GitBranch:            "test-auto-renew-certs",
 		},
 	}
 	existing := &certv1.OCPCertificateApplier{}
@@ -198,45 +187,22 @@ func (r *OCPCertificateTrackerReconciler) CreateOCPCertificateApplier(ctx contex
 	return nil
 }
 
-func (r *OCPCertificateTrackerReconciler) CheckForAllFailed(ctx context.Context, instance *certv1.OCPCertificateTracker, certs []certv1.CertificatesStatusStruct) bool {
-	count := 0
-	for _, cert := range certs {
-		if cert.Status == "Error" {
-			count += 1
-		}
-	}
-	return count == len(certs) && count != 0
-}
-
-func (r *OCPCertificateTrackerReconciler) ExtractCertificateSpecFromName(name string, instance *certv1.OCPCertificateTracker) certv1.CertificatesStruct {
-	for _, cert := range instance.Spec.Certificates {
-		if cert.Name == name {
-			return cert
-		}
-	}
-	return certv1.CertificatesStruct{}
-}
-
-func (r *OCPCertificateTrackerReconciler) ExtractCertificateStatusFromName(name string, instance *certv1.OCPCertificateTracker) certv1.CertificatesStatusStruct {
-	for _, cert := range instance.Status.Certificates {
-		if cert.Name == name {
-			return cert
-		}
-	}
-	return certv1.CertificatesStatusStruct{
-		Status: "NonExistant",
-	}
-}
-
-func (r *OCPCertificateTrackerReconciler) CreateCertStatus(status, message, expiry, name, namespace, caCert string) certv1.CertificatesStatusStruct {
+func (r *OCPCertificateTrackerReconciler) CreateCertStatus(status, message, expiry, name, namespace string) certv1.CertificatesStatusStruct {
 	return certv1.CertificatesStatusStruct{
 		Name:        name,
 		Namespace:   namespace,
 		Status:      status,
-		CaCert:      caCert,
 		Message:     message,
 		LastChecked: metav1.Now(),
 		Expiry:      expiry,
+	}
+}
+
+func (r *OCPCertificateTrackerReconciler) createAboutToExpireStruct(name, namespace string, domains []string) AboutToExpireCertificates {
+	return AboutToExpireCertificates{
+		Name:      name,
+		Namespace: namespace,
+		Domains:   domains,
 	}
 }
 

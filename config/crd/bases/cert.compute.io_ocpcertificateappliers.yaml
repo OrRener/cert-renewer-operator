@@ -29,26 +29,22 @@ spec:
               certificatesToCreate:
                 items:
                   properties:
-                    application:
-                      type: string
                     dnses:
                       items:
                         type: string
                       type: array
-                    gitPath:
-                      type: string
                     name:
+                      type: string
+                    namespace:
                       type: string
                   required:
                   - dnses
                   - name
+                  - namespace
                   type: object
                 type: array
-              gitBranch:
-                type: string
             required:
             - certificatesToCreate
-            - gitBranch
             type: object
           status:
             properties:
@@ -59,10 +55,6 @@ spec:
                       type: string
                     name:
                       type: string
-                    secretName:
-                      type: string
-                    secretNamespace:
-                      type: string
                     status:
                       type: string
                   required:
@@ -71,8 +63,6 @@ spec:
                   - status
                   type: object
                 type: array
-              gitPR:
-                type: string
             required:
             - certificates
             type: object

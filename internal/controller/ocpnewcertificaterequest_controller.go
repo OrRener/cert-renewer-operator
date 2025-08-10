@@ -56,9 +56,8 @@ func (r *OCPNewCertificateRequestReconciler) Reconcile(ctx context.Context, req 
 	for _, cert := range instance.Spec.Certificates {
 		domains := cert.Domains
 		certInputs = append(certInputs, certv1.TargetSecret{
-			Name:    cert.Name,
-			Dnses:   domains,
-			GitPath: cert.GitPath,
+			Name:  cert.Name,
+			Dnses: domains,
 		})
 	}
 	certCR := &certv1.OCPCertificateApplier{
@@ -68,7 +67,6 @@ func (r *OCPNewCertificateRequestReconciler) Reconcile(ctx context.Context, req 
 		},
 		Spec: certv1.OCPCertificateApplierSpec{
 			CertificatesToCreate: certInputs,
-			GitBranch:            "test-auto-create-certs",
 		},
 	}
 	existing := &certv1.OCPCertificateApplier{}

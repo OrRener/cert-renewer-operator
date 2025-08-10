@@ -29,17 +29,15 @@ spec:
               certificates:
                 items:
                   properties:
-                    caCert:
-                      default: ca.crt
-                      type: string
-                    gitPath:
-                      type: string
+                    domains:
+                      items:
+                        type: string
+                      type: array
                     name:
                       type: string
                     namespace:
                       type: string
                   required:
-                  - gitPath
                   - name
                   - namespace
                   type: object
@@ -59,8 +57,6 @@ spec:
                     caCert:
                       type: string
                     expiry:
-                      type: string
-                    gitPath:
                       type: string
                     lastChecked:
                       format: date-time

@@ -41,7 +41,7 @@ func (r *OCPCertificateApplierReconciler) GenerateRandomACMEKey() (*ecdsa.Privat
 	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 }
 
-func (r *OCPCertificateApplierReconciler) getOperatorData(ctx context.Context) (string, string, string, error) {
+func (r *OCPCertificateApplierReconciler) getOperatorData(ctx context.Context) (string, string, error) {
 	secret := &corev1.Secret{}
 	err := r.Get(ctx, client.ObjectKey{
 		Name:      "operator-data-secret",
@@ -49,30 +49,26 @@ func (r *OCPCertificateApplierReconciler) getOperatorData(ctx context.Context) (
 	}, secret)
 
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to get secret: %w", err)
+		return "", "", fmt.Errorf("failed to get secret: %w", err)
 	}
 
 	if string(secret.Data["acmeMail"]) == "" {
-		return "", "", "", errors.New("acmeMail is empty")
-	} else if string(secret.Data["gitlabToken"]) == "" {
-		return "", "", "", errors.New("gitlabToken is empty")
+		return "", "", errors.New("acmeMail is empty")
 	} else if string(secret.Data["pdnsApiKey"]) == "" {
-		return "", "", "", errors.New("pdnsApiKey is empty")
+		return "", "", errors.New("pdnsApiKey is empty")
 	}
 
-	return string(secret.Data["acmeMail"]), string(secret.Data["gitlabToken"]), string(secret.Data["pdnsApiKey"]), nil
+	return string(secret.Data["acmeMail"]), string(secret.Data["pdnsApiKey"]), nil
 }
 
 func (r *OCPCertificateApplierReconciler) CreateSecret(ctx context.Context, signedCert SignedCeritifactes, cert certv1.TargetSecret) error {
 	log := logf.FromContext(ctx)
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "signed-" + signedCert.Name,
-			Namespace: "ocp-controller-cert-renewer",
+			Name:      cert.Name,
+			Namespace: cert.Namespace,
 			Labels: map[string]string{
-				"cert.compute.io/cert-name": signedCert.Name,
-				"cert.compute.io/domains":   domainsToLabelValue(cert.Dnses),
-				"cert.compute.io/git-path":  strings.ReplaceAll(cert.GitPath, "/", "."),
+				"cert.compute.io/domains": domainsToLabelValue(cert.Dnses),
 			},
 		},
 		Type: corev1.SecretTypeTLS,
@@ -96,11 +92,11 @@ func (r *OCPCertificateApplierReconciler) CreateSecret(ctx context.Context, sign
 	return nil
 }
 
-func (r *OCPCertificateApplierReconciler) getSecret(ctx context.Context, name string) (*corev1.Secret, bool, error) {
+func (r *OCPCertificateApplierReconciler) getSecret(ctx context.Context, name, namespace string) (*corev1.Secret, bool, error) {
 	secret := &corev1.Secret{}
 	err := r.Get(ctx, client.ObjectKey{
-		Name:      "signed-" + name,
-		Namespace: "ocp-controller-cert-renewer",
+		Name:      name,
+		Namespace: namespace,
 	}, secret)
 
 	if err != nil {
@@ -190,51 +186,11 @@ func (r *OCPCertificateApplierReconciler) CheckForFailedCerts(ctx context.Contex
 	return false
 }
 
-func (r *OCPCertificateApplierReconciler) CheckForCompletedCerts(ctx context.Context, instance *certv1.OCPCertificateApplier, certs []certv1.CertificateStatus) bool {
-	count := 0
-	for _, cert := range certs {
-		if cert.Status == "Completed" {
-			count += 1
-		}
-	}
-	return count == len(certs) && count != 0
-}
-
-func (r *OCPCertificateApplierReconciler) DeleteSelf(ctx context.Context, instance *certv1.OCPCertificateApplier) error {
-	err := r.Delete(ctx, instance)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (r *OCPCertificateApplierReconciler) CreateCertStatus(name, message, status, secretName, secretNamespace string) certv1.CertificateStatus {
 	return certv1.CertificateStatus{
-		Name:            name,
-		Status:          status,
-		Message:         message,
-		SecretName:      secretName,
-		SecretNamespace: secretNamespace,
-	}
-}
-
-func (r *OCPCertificateApplierReconciler) ExtractCertificateSpecFromName(name string, instance *certv1.OCPCertificateApplier) certv1.TargetSecret {
-	for _, cert := range instance.Spec.CertificatesToCreate {
-		if cert.Name == name {
-			return cert
-		}
-	}
-	return certv1.TargetSecret{}
-}
-
-func (r *OCPCertificateApplierReconciler) ExtractCertificateStatusFromName(name string, instance *certv1.OCPCertificateApplier) certv1.CertificateStatus {
-	for _, cert := range instance.Status.Certificates {
-		if cert.Name == name {
-			return cert
-		}
-	}
-	return certv1.CertificateStatus{
-		Status: "NonExistant",
+		Name:    name,
+		Status:  status,
+		Message: message,
 	}
 }
 
