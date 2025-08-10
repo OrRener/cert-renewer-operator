@@ -30,4 +30,4 @@ go.work
 .kubeconfig
 
 # Pull secret
-pull-secret.json
+*pull*.json

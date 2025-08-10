@@ -3,20 +3,21 @@ package controller
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	certv1 "github.com/OrRener/cert-renewer-operator/api/v1"
+	"github.com/go-acme/lego/v4/lego"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -34,6 +35,32 @@ func (r *OCPCertificateApplierReconciler) GetInstance(ctx context.Context, name 
 		return nil, err
 	}
 	return instance, nil
+}
+
+func (r *OCPCertificateApplierReconciler) GenerateRandomACMEKey() (*ecdsa.PrivateKey, error) {
+	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+}
+
+func (r *OCPCertificateApplierReconciler) getOperatorData(ctx context.Context) (string, string, string, error) {
+	secret := &corev1.Secret{}
+	err := r.Get(ctx, client.ObjectKey{
+		Name:      "operator-data-secret",
+		Namespace: "ocp-controller-cert-renewer",
+	}, secret)
+
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to get secret: %w", err)
+	}
+
+	if string(secret.Data["acmeMail"]) == "" {
+		return "", "", "", errors.New("acmeMail is empty")
+	} else if string(secret.Data["gitlabToken"]) == "" {
+		return "", "", "", errors.New("gitlabToken is empty")
+	} else if string(secret.Data["pdnsApiKey"]) == "" {
+		return "", "", "", errors.New("pdnsApiKey is empty")
+	}
+
+	return string(secret.Data["acmeMail"]), string(secret.Data["gitlabToken"]), string(secret.Data["pdnsApiKey"]), nil
 }
 
 func (r *OCPCertificateApplierReconciler) CreateSecret(ctx context.Context, signedCert SignedCeritifactes, cert certv1.TargetSecret) error {
@@ -85,16 +112,10 @@ func (r *OCPCertificateApplierReconciler) getSecret(ctx context.Context, name st
 	return secret, true, nil
 }
 
-func (r *OCPCertificateApplierReconciler) CreateNewCertificate(ctx context.Context, instance *certv1.OCPCertificateApplier, cert certv1.TargetSecret) (SignedCeritifactes, certv1.CertificateStatus, error) {
-	log := logf.FromContext(ctx)
+func (r *OCPCertificateApplierReconciler) CreateNewCertificate(ctx context.Context, instance *certv1.OCPCertificateApplier, cert certv1.TargetSecret, client *lego.Client, User *MyUser) (SignedCeritifactes, certv1.CertificateStatus, error) {
 	var SignedCert SignedCeritifactes
 	var certificateStatus certv1.CertificateStatus
-	privateKey, err := r.FetchPrivateKey(ctx)
-	if err != nil {
-		log.Error(err, "Unable to fetch private key")
-		return SignedCeritifactes{}, certv1.CertificateStatus{}, err
-	}
-	crt, key, err := r.GenerateNewCertificate(instance, ctx, &cert, "orrener2000or@gmail.com", privateKey)
+	crt, key, err := r.GenerateNewCertificate(client, User, &cert)
 	if err != nil {
 		certificateStatus = certv1.CertificateStatus{
 			Name:    cert.Name,
@@ -117,55 +138,31 @@ func (r *OCPCertificateApplierReconciler) CreateNewCertificate(ctx context.Conte
 	return SignedCert, certificateStatus, nil
 }
 
-func (r *OCPCertificateApplierReconciler) FetchPrivateKey(ctx context.Context) (crypto.PrivateKey, error) {
-	secret := &corev1.Secret{}
-	err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      "acme-account-key",
-		Namespace: "ocp-controller-cert-renewer",
-	}, secret)
-	if err != nil {
-		return nil, err
-	}
-
-	privateKeyBytes, _ := pem.Decode(secret.Data["private.key"])
-	if privateKeyBytes == nil {
-		return nil, errors.New("failed to decode pem block")
-	}
-	parsedKey, err := x509.ParseECPrivateKey(privateKeyBytes.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	return parsedKey, nil
-
-}
-
-func (r *OCPCertificateApplierReconciler) GenerateNewCertificate(instance *certv1.OCPCertificateApplier, ctx context.Context, cert *certv1.TargetSecret, email string, privateKey crypto.PrivateKey) ([]byte, []byte, error) {
-	log := logf.FromContext(ctx)
+func (r *OCPCertificateApplierReconciler) setupACME(email string, privateKey crypto.PrivateKey, apiKey string) (*lego.Client, *MyUser, error) {
 	User := &MyUser{
 		Email: email,
 		Key:   privateKey,
 	}
-
 	client, err := User.SetupLegoClient(User)
 	if err != nil {
-		log.Error(err, "Failed to set up lego client", "cert:", cert.Name)
 		return nil, nil, err
 	}
-	pdnsProvider, err := User.SetupPDNS()
+	pdnsProvider, err := User.SetupPDNS(apiKey)
 	if err != nil {
-		log.Error(err, "Failed to set up PDNS", "cert:", cert.Name)
 		return nil, nil, err
 	}
 	err = User.SetDNSProvider(client, pdnsProvider)
 	if err != nil {
-		log.Error(err, "Failed to set up DNS provider for ACME", "cert:", cert.Name)
 		return nil, nil, err
 	}
 	err = User.RegisterClient(User, client)
 	if err != nil {
-		log.Error(err, "Failed to register user", "cert:", cert.Name)
 		return nil, nil, err
 	}
+	return client, User, nil
+}
+
+func (r *OCPCertificateApplierReconciler) GenerateNewCertificate(client *lego.Client, User *MyUser, cert *certv1.TargetSecret) ([]byte, []byte, error) {
 	crt, key, err := User.ObtainCertificates(client, cert.Dnses)
 	if err != nil {
 		return nil, nil, err

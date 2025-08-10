@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	certv1 "github.com/OrRener/cert-renewer-operator/api/v1"
+	"github.com/go-acme/lego/v4/lego"
 	legolog "github.com/go-acme/lego/v4/log"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,8 +40,11 @@ func (n *noopLogger) Warnf(format string, args ...interface{})  {}
 func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	legolog.Logger = &noopLogger{}
 	statuses := []certv1.CertificateStatus{}
+	var client *lego.Client
+	var user *MyUser
 	signingNeeded := false
 	gitCommitNeeded := false
+	acmeSetUp := false
 	log := logf.FromContext(ctx)
 	instance, err := r.GetInstance(ctx, req.Name, req.Namespace)
 	if err != nil {
@@ -50,6 +54,13 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 		}
 		return ctrl.Result{}, err
 	}
+
+	acmeMail, gitlabToken, pdnsApiKey, err := r.getOperatorData(ctx)
+	if err != nil {
+		log.Error(err, "Failed to get operator secrets", "instance:", instance)
+		return ctrl.Result{}, err
+	}
+
 	for _, cert := range instance.Spec.CertificatesToCreate {
 		secret, exists, err := r.getSecret(ctx, cert.Name)
 		if cert.GitPath != "" && !gitCommitNeeded {
@@ -60,7 +71,18 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 		}
 		if !exists || !r.isDesiredDomains(cert, secret) {
 			signingNeeded = true
-			SignedCeritificate, CertificateStatus, err := r.CreateNewCertificate(ctx, instance, cert)
+			if !acmeSetUp {
+				privateKey, err := r.GenerateRandomACMEKey()
+				if err != nil {
+					log.Error(err, "Failed to generate private key", "instance:", instance)
+				}
+				client, user, err = r.setupACME(acmeMail, privateKey, pdnsApiKey)
+				if err != nil {
+					log.Error(err, "Failed to setup ACME client", "instance:", instance)
+				}
+				acmeSetUp = true
+			}
+			SignedCeritificate, CertificateStatus, err := r.CreateNewCertificate(ctx, instance, cert, client, user)
 			if err != nil {
 				log.Error(err, "failed to sign certificate", "certificate:", cert.Name)
 			} else {
@@ -104,7 +126,7 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 			log.Error(err, "Failed to delete repo contents", "instance:", instance)
 			return ctrl.Result{}, err
 		}
-		err = cloneRepo()
+		err = cloneRepo(gitlabToken)
 		if err != nil {
 			log.Error(err, "Failed to clone repo ocpbm-cluster-config", "instance:", instance)
 			return ctrl.Result{}, err
@@ -156,7 +178,7 @@ func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctr
 			return ctrl.Result{}, errors.New("some certificates failed")
 		}
 		log.Info("Successfully encrypted keys.", "instance:", instance)
-		err = commitAndPushChanges(wt, repo, branch)
+		err = commitAndPushChanges(wt, repo, branch, gitlabToken)
 		if err != nil {
 			if err == ErrNoChanges {
 				return ctrl.Result{}, nil

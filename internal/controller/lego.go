@@ -51,10 +51,10 @@ func (r *MyUser) SetupLegoClient(User *MyUser) (*lego.Client, error) {
 	return client, nil
 }
 
-func (r *MyUser) SetupPDNS() (*pdns.DNSProvider, error) {
+func (r *MyUser) SetupPDNS(apiKey string) (*pdns.DNSProvider, error) {
 
 	config := pdns.NewDefaultConfig()
-	config.APIKey = "test"
+	config.APIKey = apiKey
 	config.ServerName = "localhost"
 	url, _ := url.Parse("http://pdns:8082")
 	config.Host = url
