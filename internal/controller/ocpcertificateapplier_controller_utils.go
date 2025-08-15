@@ -6,12 +6,8 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"sort"
-	"strings"
 
 	certv1 "github.com/OrRener/cert-renewer-operator/api/v1"
 	"github.com/go-acme/lego/v4/lego"
@@ -22,11 +18,11 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type SignedCeritifactes struct {
+/*type SignedCeritifactes struct {
 	Name string
 	Cert []byte
 	Key  []byte
-}
+}*/
 
 func (r *OCPCertificateApplierReconciler) GetInstance(ctx context.Context, name string, namespace string) (*certv1.OCPCertificateApplier, error) {
 	instance := &certv1.OCPCertificateApplier{}
@@ -194,7 +190,7 @@ func (r *OCPCertificateApplierReconciler) CreateCertStatus(name, message, status
 	}
 }
 
-func domainsToLabelValue(domains []string) string {
+/*func domainsToLabelValue(domains []string) string {
 	sort.Strings(domains)
 	joinedDomains := strings.Join(domains, ",")
 
@@ -204,7 +200,7 @@ func domainsToLabelValue(domains []string) string {
 
 	hashString := hex.EncodeToString(hash)
 	return hashString[0:32]
-}
+}*/
 
 func (r *OCPCertificateApplierReconciler) isDesiredDomains(cert certv1.TargetSecret, secret *corev1.Secret) bool {
 	return domainsToLabelValue(cert.Dnses) == secret.Labels["cert.compute.io/domains"]

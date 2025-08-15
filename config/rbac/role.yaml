@@ -13,6 +13,7 @@ rules:
   - delete
   - get
   - list
+  - patch
   - update
   - watch
 - apiGroups:
@@ -20,7 +21,6 @@ rules:
   resources:
   - ocpcertificateappliers
   - ocpcertificatetrackers
-  - ocpnewcertificaterequests
   verbs:
   - create
   - delete
@@ -34,7 +34,6 @@ rules:
   resources:
   - ocpcertificateappliers/finalizers
   - ocpcertificatetrackers/finalizers
-  - ocpnewcertificaterequests/finalizers
   verbs:
   - update
 - apiGroups:
@@ -42,7 +41,6 @@ rules:
   resources:
   - ocpcertificateappliers/status
   - ocpcertificatetrackers/status
-  - ocpnewcertificaterequests/status
   verbs:
   - get
   - patch

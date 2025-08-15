@@ -4,7 +4,6 @@
 resources:
 - bases/cert.compute.io_ocpcertificatetrackers.yaml
 - bases/cert.compute.io_ocpcertificateappliers.yaml
-- bases/cert.compute.io_ocpnewcertificaterequests.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

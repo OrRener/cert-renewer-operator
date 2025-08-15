@@ -7,7 +7,6 @@ import (
 
 	certv1 "github.com/OrRener/cert-renewer-operator/api/v1"
 	"github.com/go-acme/lego/v4/lego"
-	legolog "github.com/go-acme/lego/v4/log"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -22,23 +21,12 @@ type OCPCertificateApplierReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-type noopLogger struct{}
-
-func (n *noopLogger) Fatal(args ...interface{})                 {}
-func (n *noopLogger) Fatalf(format string, args ...interface{}) {}
-func (n *noopLogger) Fatalln(args ...interface{})               {}
-func (n *noopLogger) Print(args ...interface{})                 {}
-func (n *noopLogger) Printf(format string, args ...interface{}) {}
-func (n *noopLogger) Println(args ...interface{})               {}
-func (n *noopLogger) Warnf(format string, args ...interface{})  {}
-
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificateappliers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificateappliers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cert.compute.io,resources=ocpcertificateappliers/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;delete
 
 func (r *OCPCertificateApplierReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	legolog.Logger = &noopLogger{}
 	statuses := []certv1.CertificateStatus{}
 	var client *lego.Client
 	var user *MyUser
