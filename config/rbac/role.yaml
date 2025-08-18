@@ -19,7 +19,7 @@ rules:
 - apiGroups:
   - cert.compute.io
   resources:
-  - ocpcertificateappliers
+  - issuerconfigs
   - ocpcertificatetrackers
   verbs:
   - create
@@ -32,14 +32,14 @@ rules:
 - apiGroups:
   - cert.compute.io
   resources:
-  - ocpcertificateappliers/finalizers
+  - issuerconfigs/finalizers
   - ocpcertificatetrackers/finalizers
   verbs:
   - update
 - apiGroups:
   - cert.compute.io
   resources:
-  - ocpcertificateappliers/status
+  - issuerconfigs/status
   - ocpcertificatetrackers/status
   verbs:
   - get

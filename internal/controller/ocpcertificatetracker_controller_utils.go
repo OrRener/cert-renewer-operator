@@ -25,7 +25,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 )
 
 func ParseDaysDuration(threshold string) (string, error) {
@@ -152,46 +153,6 @@ func (r *OCPCertificateTrackerReconciler) GetCertificateDomains(certData []byte)
 	return domains, nil
 }
 
-func (r *OCPCertificateTrackerReconciler) CreateOCPCertificateApplier(ctx context.Context, AboutToExpireCerts []AboutToExpireCertificates, instance *certv1.OCPCertificateTracker) error {
-	var certInputs []certv1.TargetSecret
-	for _, cert := range AboutToExpireCerts {
-		certInputs = append(certInputs, certv1.TargetSecret{
-			Name:      cert.Name,
-			Namespace: cert.Namespace,
-			Dnses:     cert.Domains,
-		})
-	}
-	certCR := &certv1.OCPCertificateApplier{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      instance.Name + "-applier",
-			Namespace: "ocp-controller-cert-renewer",
-		},
-		Spec: certv1.OCPCertificateApplierSpec{
-			CertificatesToCreate: certInputs,
-		},
-	}
-	existing := &certv1.OCPCertificateApplier{}
-	err := r.Get(ctx, types.NamespacedName{
-		Name:      certCR.Name,
-		Namespace: certCR.Namespace,
-	}, existing)
-
-	if err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-
-	if apierrors.IsNotFound(err) {
-		return r.Create(ctx, certCR)
-	}
-
-	existing.Spec = certCR.Spec
-	if err := r.Update(ctx, existing); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (r *OCPCertificateTrackerReconciler) CreateCertStatus(status, message, expiry, name, namespace string) certv1.CertificatesStatusStruct {
 	return certv1.CertificatesStatusStruct{
 		Name:        name,
@@ -217,24 +178,46 @@ func (r *OCPCertificateTrackerReconciler) GenerateRandomACMEKey() (*ecdsa.Privat
 	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 }
 
-func (r *OCPCertificateTrackerReconciler) getOperatorData(ctx context.Context) (string, string, error) {
+func (r *OCPCertificateTrackerReconciler) getOperatorData(ctx context.Context, instance *certv1.OCPCertificateTracker) (string, string, string, string, error) {
 	secret := &corev1.Secret{}
+	issuerConfig := &certv1.IssuerConfig{}
+
+	if instance.Spec.IssuerConfigRef.Namespace == "" {
+		instance.Spec.IssuerConfigRef.Namespace = instance.Namespace
+	}
+
 	err := r.Get(ctx, client.ObjectKey{
-		Name:      "operator-data-secret",
-		Namespace: "ocp-controller-cert-renewer",
+		Name:      instance.Spec.IssuerConfigRef.Name,
+		Namespace: instance.Spec.IssuerConfigRef.Namespace,
+	}, issuerConfig)
+
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("failed to get issuerConfig: %w", err)
+	}
+
+	if issuerConfig.Spec.AcmeSecret.SecretRef.Namespace == "" {
+		issuerConfig.Spec.AcmeSecret.SecretRef.Namespace = issuerConfig.Namespace
+	}
+	err = r.Get(ctx, client.ObjectKey{
+		Name:      issuerConfig.Spec.AcmeSecret.SecretRef.Name,
+		Namespace: issuerConfig.Spec.AcmeSecret.SecretRef.Namespace,
 	}, secret)
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get secret: %w", err)
+		return "", "", "", "", fmt.Errorf("failed to get secret: %w", err)
 	}
 
 	if string(secret.Data["acmeMail"]) == "" {
-		return "", "", errors.New("acmeMail is empty")
+		return "", "", "", "", errors.New("acmeMail is empty")
 	} else if string(secret.Data["pdnsApiKey"]) == "" {
-		return "", "", errors.New("pdnsApiKey is empty")
+		return "", "", "", "", errors.New("pdnsApiKey is empty")
+	} else if string(secret.Data["acmeHost"]) == "" {
+		return "", "", "", "", errors.New("acmeHost is empty")
+	} else if string(secret.Data["pdnsHost"]) == "" {
+		return "", "", "", "", errors.New("pdnsHost is empty")
 	}
 
-	return string(secret.Data["acmeMail"]), string(secret.Data["pdnsApiKey"]), nil
+	return string(secret.Data["acmeMail"]), string(secret.Data["pdnsApiKey"]), string(secret.Data["acmeHost"]), string(secret.Data["pdnsHost"]), nil
 }
 
 func (r *OCPCertificateTrackerReconciler) tryUpdatingSecret(ctx context.Context, name, namespace string, instance *certv1.OCPCertificateTracker) error {
@@ -247,7 +230,8 @@ func (r *OCPCertificateTrackerReconciler) tryUpdatingSecret(ctx context.Context,
 
 	patch := client.MergeFrom(secret.DeepCopy())
 	secret.Labels = map[string]string{
-		"cert.compute.io/managed-by": instance.Name,
+		"cert.compute.io/managed-by": fmt.Sprintf("%s.%s", instance.Namespace, instance.Name),
+		"cert.compute.io/managed":    "true",
 	}
 
 	return r.Client.Patch(ctx, secret, patch)
@@ -261,7 +245,8 @@ func (r *OCPCertificateTrackerReconciler) CreateSecret(ctx context.Context, sign
 			Namespace: cert.Namespace,
 			Labels: map[string]string{
 				"cert.compute.io/domains":    domainsToLabelValue(cert.Domains),
-				"cert.compute.io/managed-by": instance.Name,
+				"cert.compute.io/managed-by": fmt.Sprintf("%s.%s", instance.Namespace, instance.Name),
+				"cert.compute.io/managed":    "true",
 			},
 		},
 		Type: corev1.SecretTypeTLS,
@@ -295,7 +280,6 @@ func (r *OCPCertificateTrackerReconciler) CreateNewCertificate(ctx context.Conte
 	if err != nil {
 		return SignedCeritifactes{}, nil
 	}
-	fmt.Println(expiry)
 	SignedCert = SignedCeritifactes{
 		Name:   cert.Name,
 		Cert:   crt,
@@ -306,16 +290,16 @@ func (r *OCPCertificateTrackerReconciler) CreateNewCertificate(ctx context.Conte
 	return SignedCert, nil
 }
 
-func (r *OCPCertificateTrackerReconciler) setupACME(email string, privateKey crypto.PrivateKey, apiKey string) (*lego.Client, *MyUser, error) {
+func (r *OCPCertificateTrackerReconciler) setupACME(email, acmeHost, pdnsHost, apiKey string, privateKey crypto.PrivateKey) (*lego.Client, *MyUser, error) {
 	User := &MyUser{
 		Email: email,
 		Key:   privateKey,
 	}
-	client, err := User.SetupLegoClient(User)
+	client, err := User.SetupLegoClient(User, acmeHost)
 	if err != nil {
 		return nil, nil, err
 	}
-	pdnsProvider, err := User.SetupPDNS(apiKey)
+	pdnsProvider, err := User.SetupPDNS(apiKey, pdnsHost)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -362,4 +346,34 @@ func domainsToLabelValue(domains []string) string {
 
 func (r *OCPCertificateTrackerReconciler) isDesiredDomains(cert certv1.CertificatesStruct, secret *corev1.Secret) bool {
 	return domainsToLabelValue(cert.Domains) == secret.Labels["cert.compute.io/domains"]
+}
+
+func (r *OCPCertificateTrackerReconciler) cleanup(ctx context.Context) error {
+
+	selector, err := labels.NewRequirement("cert.compute.io/managed-by", selection.Exists, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create label selector for cleanup: %w", err)
+	}
+
+	secretList := &corev1.SecretList{}
+	listOpts := []client.ListOption{
+		client.MatchingLabelsSelector{Selector: labels.NewSelector().Add(*selector)},
+	}
+
+	if err := r.Client.List(ctx, secretList, listOpts...); err != nil {
+		return fmt.Errorf("failed to list secrets for cleanup: %w", err)
+	}
+
+	for _, secret := range secretList.Items {
+		secretToUpdate := secret.DeepCopy()
+
+		if secretToUpdate.Labels != nil {
+			delete(secretToUpdate.Labels, "cert.compute.io/managed-by")
+		}
+		if err := r.Client.Patch(ctx, secretToUpdate, client.MergeFrom(&secret)); err != nil {
+			return fmt.Errorf("failed to remove label from secret %s: %w", secretToUpdate.Name, err)
+		}
+	}
+
+	return nil
 }

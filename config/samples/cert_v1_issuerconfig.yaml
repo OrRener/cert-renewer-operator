@@ -1,9 +1,9 @@
 apiVersion: cert.compute.io/v1
-kind: OCPNewCertificateRequest
+kind: IssuerConfig
 metadata:
   labels:
     app.kubernetes.io/name: cert-renewer-operator
     app.kubernetes.io/managed-by: kustomize
-  name: ocpnewcertificaterequest-sample
+  name: issuerconfig-sample
 spec:
   # TODO(user): Add fields here

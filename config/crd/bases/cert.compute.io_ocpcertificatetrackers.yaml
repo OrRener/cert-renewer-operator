@@ -43,11 +43,20 @@ spec:
                   type: object
                 type: array
               expirationThreshold:
-                default: 720h
                 type: string
+              issuerConfigRef:
+                properties:
+                  name:
+                    type: string
+                  namespace:
+                    type: string
+                required:
+                - name
+                type: object
             required:
             - certificates
             - expirationThreshold
+            - issuerConfigRef
             type: object
           status:
             properties:

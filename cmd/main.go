@@ -183,7 +183,7 @@ func main() {
 		})
 	}
 
-	req, err := labels.NewRequirement("cert.compute.io/managed-by", selection.Exists, nil)
+	req, err := labels.NewRequirement("cert.compute.io/managed", selection.Exists, nil)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -221,18 +221,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := (&controller.IssuerConfigReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "IssuerConfig")
+		os.Exit(1)
+	}
 	if err := (&controller.OCPCertificateTrackerReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "OCPCertificateTracker")
-		os.Exit(1)
-	}
-	if err := (&controller.OCPCertificateApplierReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "OCPCertificateApplier")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

@@ -3,6 +3,7 @@ package controller
 import (
 	"crypto"
 	"crypto/tls"
+	"fmt"
 	"strings"
 
 	"net/http"
@@ -32,10 +33,10 @@ func (u *MyUser) GetPrivateKey() crypto.PrivateKey {
 	return u.Key
 }
 
-func (r *MyUser) SetupLegoClient(User *MyUser) (*lego.Client, error) {
+func (r *MyUser) SetupLegoClient(User *MyUser, host string) (*lego.Client, error) {
 
 	legoConfig := lego.NewConfig(User)
-	legoConfig.CADirURL = "https://pebble:14000/dir"
+	legoConfig.CADirURL = fmt.Sprintf("https://%s/dir", host)
 	legoConfig.Certificate.KeyType = certcrypto.RSA2048
 	legoConfig.HTTPClient = &http.Client{
 		Transport: &http.Transport{
@@ -51,12 +52,12 @@ func (r *MyUser) SetupLegoClient(User *MyUser) (*lego.Client, error) {
 	return client, nil
 }
 
-func (r *MyUser) SetupPDNS(apiKey string) (*pdns.DNSProvider, error) {
+func (r *MyUser) SetupPDNS(apiKey, pdnsHost string) (*pdns.DNSProvider, error) {
 
 	config := pdns.NewDefaultConfig()
 	config.APIKey = apiKey
 	config.ServerName = "localhost"
-	url, _ := url.Parse("http://pdns:8082")
+	url, _ := url.Parse(fmt.Sprintf("http://%s", pdnsHost))
 	config.Host = url
 	pdnsProvider, err := pdns.NewDNSProviderConfig(config)
 	if err != nil {
