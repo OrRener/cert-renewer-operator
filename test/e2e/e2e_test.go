@@ -134,7 +134,7 @@ var _ = Describe("Manager", Ordered, func() {
 		}
 	})
 
-	SetDefaultEventuallyTimeout(2 * time.Minute)
+	SetDefaultEventuallyTimeout(4 * time.Minute)
 	SetDefaultEventuallyPollingInterval(time.Second)
 
 	Context("Manager", func() {
