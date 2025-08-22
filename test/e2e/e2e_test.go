@@ -31,7 +31,7 @@ import (
 )
 
 // namespace where the project is deployed in
-const namespace = "cert-renewer-operator-system"
+const namespace = "ocp-controller-cert-renewer"
 
 // serviceAccountName created for the project
 const serviceAccountName = "cert-renewer-operator-controller-manager"
