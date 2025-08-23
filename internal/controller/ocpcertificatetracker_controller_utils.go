@@ -104,7 +104,7 @@ func (r *OCPCertificateTrackerReconciler) CheckIfValidCertificate(expiration str
 }
 
 func (r *OCPCertificateTrackerReconciler) getSecret(cert certv1.CertificatesStruct, ctx context.Context) (*corev1.Secret, bool, error) {
-	var secret *corev1.Secret
+	secret := &corev1.Secret{}
 	err := r.Get(ctx, client.ObjectKey{
 		Name:      cert.Name,
 		Namespace: cert.Namespace,
