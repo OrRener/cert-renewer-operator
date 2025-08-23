@@ -78,6 +78,11 @@ func (r *IssuerConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if !controllerutil.ContainsFinalizer(instance, finalizer) {
 		controllerutil.AddFinalizer(instance, finalizer)
+		err = r.Update(ctx, instance)
+		if err != nil {
+			log.Error(err, "failed to update object status", "instance:", instance)
+			return ctrl.Result{}, err
+		}
 	}
 
 	if instance.Spec.AcmeSecret.SecretRef.Namespace == "" {

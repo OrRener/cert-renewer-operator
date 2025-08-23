@@ -45,7 +45,7 @@ type AboutToExpireCertificates struct {
 	Domains   []string
 }
 
-type SignedCeritifactes struct {
+type SignedCertificates struct {
 	Name   string
 	Cert   []byte
 	Key    []byte
@@ -69,7 +69,6 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 		log.Error(err, "Failed to fetch OCPCertificateTracker")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-
 	if instance.GetDeletionTimestamp() != nil {
 		if controllerutil.ContainsFinalizer(instance, finalizer) {
 			log.Info("cleaning up secrets for deleted instance", "instance:", instance)
@@ -85,6 +84,11 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 
 	if !controllerutil.ContainsFinalizer(instance, finalizer) {
 		controllerutil.AddFinalizer(instance, finalizer)
+		err = r.Update(ctx, instance)
+		if err != nil {
+			log.Error(err, "failed to update object status", "instance:", instance)
+			return ctrl.Result{}, err
+		}
 	}
 
 	acmeMail, pdnsApiKey, acmeHost, pdnsHost, err := r.getOperatorData(ctx, instance)
@@ -139,7 +143,7 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 			if !r.isDesiredDomains(cert, secret) {
 				signCert = true
 			}
-			expiration, status, err = r.UpdateExpiryStatus(ctx, cert, instance, secret)
+			expiration, status, err = r.UpdateExpiryStatus(ctx, instance, secret.Data["tls.crt"])
 			if err != nil {
 				errMsg = err
 				goto finalize
@@ -162,12 +166,7 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 					goto finalize
 				}
 			}
-			secret, _, err := r.getSecret(cert, ctx)
-			if err != nil {
-				errMsg = err
-				goto finalize
-			}
-			expiration, status, err = r.UpdateExpiryStatus(ctx, cert, instance, secret)
+			expiration, status, err = r.UpdateExpiryStatus(ctx, instance, SignedCeritificate.Cert)
 			if err != nil {
 				errMsg = err
 				goto finalize
