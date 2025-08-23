@@ -104,7 +104,7 @@ func (r *OCPCertificateTrackerReconciler) CheckIfValidCertificate(expiration str
 }
 
 func (r *OCPCertificateTrackerReconciler) getSecret(cert certv1.CertificatesStruct, ctx context.Context) (*corev1.Secret, bool, error) {
-	secret := new(corev1.Secret)
+	var secret *corev1.Secret
 	err := r.Get(ctx, client.ObjectKey{
 		Name:      cert.Name,
 		Namespace: cert.Namespace,
@@ -364,7 +364,7 @@ func (r *OCPCertificateTrackerReconciler) cleanup(ctx context.Context) error {
 		client.MatchingLabelsSelector{Selector: labels.NewSelector().Add(*selector)},
 	}
 
-	if err := r.Client.List(ctx, secretList, listOpts...); err != nil {
+	if err := r.List(ctx, secretList, listOpts...); err != nil {
 		return fmt.Errorf("failed to list secrets for cleanup: %w", err)
 	}
 
@@ -374,7 +374,7 @@ func (r *OCPCertificateTrackerReconciler) cleanup(ctx context.Context) error {
 		if secretToUpdate.Labels != nil {
 			delete(secretToUpdate.Labels, "cert.compute.io/managed-by")
 		}
-		if err := r.Client.Patch(ctx, secretToUpdate, client.MergeFrom(&secret)); err != nil {
+		if err := r.Patch(ctx, secretToUpdate, client.MergeFrom(&secret)); err != nil {
 			return fmt.Errorf("failed to remove label from secret %s: %w", secretToUpdate.Name, err)
 		}
 	}

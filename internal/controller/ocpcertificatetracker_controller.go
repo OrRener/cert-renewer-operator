@@ -105,7 +105,6 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	for _, cert := range instance.Spec.Certificates {
-		secret := new(corev1.Secret)
 		signCert := false
 		var errMsg error = nil
 		var expiration, status, message string
