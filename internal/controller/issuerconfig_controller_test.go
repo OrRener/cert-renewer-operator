@@ -51,7 +51,17 @@ var _ = Describe("IssuerConfig Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: certv1.IssuerConfigSpec{
+						AcmeHost: "test.host",
+						PdnsHost: "test.pdns",
+						Email:    "orrener@test.com",
+						AcmeSecret: certv1.AcmeSecret{
+							SecretRef: certv1.SecretRef{
+								Name:      "testing",
+								Namespace: "default",
+							},
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
