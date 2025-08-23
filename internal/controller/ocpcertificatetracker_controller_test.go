@@ -51,7 +51,20 @@ var _ = Describe("OCPCertificateTracker Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: certv1.OCPCertificateTrackerSpec{
+						Certificates: []certv1.CertificatesStruct{
+							{
+								Name:      "test",
+								Namespace: "default",
+								Domains:   []string{"hello.world", "*.hello.world"},
+							},
+						},
+						ExpirationThreshold: "30d",
+						IssuerConfigRef: certv1.IssuerConfigRef{
+							Name:      "test-resource",
+							Namespace: "default",
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

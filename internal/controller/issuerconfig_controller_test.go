@@ -30,7 +30,7 @@ import (
 	certv1 "github.com/OrRener/cert-renewer-operator/api/v1"
 )
 
-var _ = Describe("OCPNewCertificateRequest Controller", func() {
+var _ = Describe("IssuerConfig Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -40,18 +40,28 @@ var _ = Describe("OCPNewCertificateRequest Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		ocpnewcertificaterequest := &certv1.OCPNewCertificateRequest{}
+		issuerconfig := &certv1.IssuerConfig{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind OCPNewCertificateRequest")
-			err := k8sClient.Get(ctx, typeNamespacedName, ocpnewcertificaterequest)
+			By("creating the custom resource for the Kind IssuerConfig")
+			err := k8sClient.Get(ctx, typeNamespacedName, issuerconfig)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &certv1.OCPNewCertificateRequest{
+				resource := &certv1.IssuerConfig{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: certv1.IssuerConfigSpec{
+						AcmeHost: "test.host",
+						PdnsHost: "test.pdns",
+						Email:    "orrener@test.com",
+						AcmeSecret: certv1.AcmeSecret{
+							SecretRef: certv1.SecretRef{
+								Name:      "testing",
+								Namespace: "default",
+							},
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
@@ -59,16 +69,16 @@ var _ = Describe("OCPNewCertificateRequest Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &certv1.OCPNewCertificateRequest{}
+			resource := &certv1.IssuerConfig{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance OCPNewCertificateRequest")
+			By("Cleanup the specific resource instance IssuerConfig")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &OCPNewCertificateRequestReconciler{
+			controllerReconciler := &IssuerConfigReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}

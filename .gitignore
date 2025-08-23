@@ -30,6 +30,6 @@ go.work
 .kubeconfig
 
 # Pull secret
-*pull*.json
+pull-secret.json
 redhat-pull.json
 merged-pull-secret.json

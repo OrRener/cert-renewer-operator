@@ -10,16 +10,17 @@ rules:
   - secrets
   verbs:
   - create
+  - delete
   - get
   - list
+  - patch
   - update
   - watch
 - apiGroups:
   - cert.compute.io
   resources:
-  - ocpcertificateappliers
+  - issuerconfigs
   - ocpcertificatetrackers
-  - ocpnewcertificaterequests
   verbs:
   - create
   - delete
@@ -31,17 +32,15 @@ rules:
 - apiGroups:
   - cert.compute.io
   resources:
-  - ocpcertificateappliers/finalizers
+  - issuerconfigs/finalizers
   - ocpcertificatetrackers/finalizers
-  - ocpnewcertificaterequests/finalizers
   verbs:
   - update
 - apiGroups:
   - cert.compute.io
   resources:
-  - ocpcertificateappliers/status
+  - issuerconfigs/status
   - ocpcertificatetrackers/status
-  - ocpnewcertificaterequests/status
   verbs:
   - get
   - patch

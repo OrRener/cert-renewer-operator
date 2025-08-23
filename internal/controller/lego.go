@@ -3,6 +3,7 @@ package controller
 import (
 	"crypto"
 	"crypto/tls"
+	"fmt"
 	"strings"
 
 	"net/http"
@@ -32,10 +33,10 @@ func (u *MyUser) GetPrivateKey() crypto.PrivateKey {
 	return u.Key
 }
 
-func (r *MyUser) SetupLegoClient(User *MyUser) (*lego.Client, error) {
+func (r *MyUser) SetupLegoClient(User *MyUser, host string) (*lego.Client, error) {
 
 	legoConfig := lego.NewConfig(User)
-	legoConfig.CADirURL = "https://pebble:14000/dir"
+	legoConfig.CADirURL = fmt.Sprintf("https://%s/dir", host)
 	legoConfig.Certificate.KeyType = certcrypto.RSA2048
 	legoConfig.HTTPClient = &http.Client{
 		Transport: &http.Transport{
@@ -51,13 +52,13 @@ func (r *MyUser) SetupLegoClient(User *MyUser) (*lego.Client, error) {
 	return client, nil
 }
 
-func (r *MyUser) SetupPDNS(apiKey string) (*pdns.DNSProvider, error) {
+func (r *MyUser) SetupPDNS(apiKey, pdnsHost string) (*pdns.DNSProvider, error) {
 
 	config := pdns.NewDefaultConfig()
 	config.APIKey = apiKey
 	config.ServerName = "localhost"
-	url, _ := url.Parse("http://pdns:8082")
-	config.Host = url
+	host, _ := url.Parse(fmt.Sprintf("http://%s", pdnsHost))
+	config.Host = host
 	pdnsProvider, err := pdns.NewDNSProviderConfig(config)
 	if err != nil {
 		return nil, err
@@ -87,6 +88,7 @@ func (r *MyUser) SetDNSProvider(client *lego.Client, pdnsProvider *pdns.DNSProvi
 func (r *MyUser) ObtainCertificates(client *lego.Client, domains []string) ([]byte, []byte, error) {
 	request := certificate.ObtainRequest{
 		Domains: domains,
+		Bundle:  true,
 	}
 
 	certificates, err := client.Certificate.Obtain(request)

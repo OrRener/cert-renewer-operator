@@ -11,17 +11,17 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-renewer-operator
     app.kubernetes.io/managed-by: kustomize
-  name: ocpnewcertificaterequest-admin-role
+  name: issuerconfig-admin-role
 rules:
 - apiGroups:
   - cert.compute.io
   resources:
-  - ocpnewcertificaterequests
+  - issuerconfigs
   verbs:
   - '*'
 - apiGroups:
   - cert.compute.io
   resources:
-  - ocpnewcertificaterequests/status
+  - issuerconfigs/status
   verbs:
   - get

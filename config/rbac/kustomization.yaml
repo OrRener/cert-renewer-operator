@@ -22,12 +22,9 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the cert-renewer-operator itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
-- ocpnewcertificaterequest_admin_role.yaml
-- ocpnewcertificaterequest_editor_role.yaml
-- ocpnewcertificaterequest_viewer_role.yaml
-- ocpcertificateapplier_admin_role.yaml
-- ocpcertificateapplier_editor_role.yaml
-- ocpcertificateapplier_viewer_role.yaml
+- issuerconfig_admin_role.yaml
+- issuerconfig_editor_role.yaml
+- issuerconfig_viewer_role.yaml
 - ocpcertificatetracker_admin_role.yaml
 - ocpcertificatetracker_editor_role.yaml
 - ocpcertificatetracker_viewer_role.yaml

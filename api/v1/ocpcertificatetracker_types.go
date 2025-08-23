@@ -21,12 +21,14 @@ import (
 )
 
 type CertificatesStruct struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+	Name      string   `json:"name"`
+	Namespace string   `json:"namespace"`
+	Domains   []string `json:"domains,omitempty"`
+}
 
-	// +kubebuilder:default:="ca.crt"
-	CaCert  string `json:"caCert,omitempty"`
-	GitPath string `json:"gitPath"`
+type IssuerConfigRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
 }
 
 type CertificatesStatusStruct struct {
@@ -37,15 +39,13 @@ type CertificatesStatusStruct struct {
 	Expiry      string      `json:"expiry,omitempty"`
 	Status      string      `json:"status,omitempty"`
 	Message     string      `json:"message,omitempty"`
-	GitPath     string      `json:"gitPath,omitempty"`
 }
 
 // OCPCertificateTrackerSpec defines the desired state of OCPCertificateTracker
 type OCPCertificateTrackerSpec struct {
-	Certificates []CertificatesStruct `json:"certificates"`
-
-	// +kubebuilder:default:="720h"
-	ExpirationThreshold string `json:"expirationThreshold"`
+	Certificates        []CertificatesStruct `json:"certificates"`
+	ExpirationThreshold string               `json:"expirationThreshold"`
+	IssuerConfigRef     IssuerConfigRef      `json:"issuerConfigRef"`
 }
 
 // OCPCertificateTrackerStatus defines the observed state of OCPCertificateTracker.
