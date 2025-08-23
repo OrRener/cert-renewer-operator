@@ -57,8 +57,8 @@ func (r *MyUser) SetupPDNS(apiKey, pdnsHost string) (*pdns.DNSProvider, error) {
 	config := pdns.NewDefaultConfig()
 	config.APIKey = apiKey
 	config.ServerName = "localhost"
-	url, _ := url.Parse(fmt.Sprintf("http://%s", pdnsHost))
-	config.Host = url
+	host, _ := url.Parse(fmt.Sprintf("http://%s", pdnsHost))
+	config.Host = host
 	pdnsProvider, err := pdns.NewDNSProviderConfig(config)
 	if err != nil {
 		return nil, err

@@ -65,10 +65,13 @@ func (r *IssuerConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if instance.GetDeletionTimestamp() != nil {
 		if controllerutil.ContainsFinalizer(instance, finalizer) {
-			log.Info("cleaning up secerts for deleted instance", "instance:", instance)
-			r.cleanup(ctx)
+			log.Info("cleaning up secrets for deleted instance", "instance:", instance)
+			err = r.cleanup(ctx)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
 			controllerutil.RemoveFinalizer(instance, finalizer)
-			return ctrl.Result{}, r.Client.Update(ctx, instance)
+			return ctrl.Result{}, r.Update(ctx, instance)
 		}
 		return ctrl.Result{}, nil
 	}
@@ -90,7 +93,10 @@ func (r *IssuerConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		log.Info("Successfully read info from issuerConfig", "instance:", instance)
 	}
 	instance.Status = r.CreateCertStatus("Success", "Info successfully read")
-	r.UpdateObjectStatus(ctx, instance)
+	err = r.UpdateObjectStatus(ctx, instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	return ctrl.Result{}, nil
 }
 

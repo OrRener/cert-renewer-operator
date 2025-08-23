@@ -72,8 +72,11 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 
 	if instance.GetDeletionTimestamp() != nil {
 		if controllerutil.ContainsFinalizer(instance, finalizer) {
-			log.Info("cleaning up secerts for deleted instance", "instance:", instance)
-			r.cleanup(ctx)
+			log.Info("cleaning up secrets for deleted instance", "instance:", instance)
+			err = r.cleanup(ctx)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
 			controllerutil.RemoveFinalizer(instance, finalizer)
 			return ctrl.Result{}, r.Client.Update(ctx, instance)
 		}
@@ -95,7 +98,7 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 		log.Error(err, "Failed to generate private key", "instance:", instance)
 		return ctrl.Result{}, err
 	}
-	client, user, err := r.setupACME(acmeMail, acmeHost, pdnsHost, pdnsApiKey, privateKey)
+	legoClient, user, err := r.setupACME(acmeMail, acmeHost, pdnsHost, pdnsApiKey, privateKey)
 	if err != nil {
 		log.Error(err, "Failed to setup ACME client", "instance:", instance)
 		return ctrl.Result{}, err
@@ -148,7 +151,7 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 		}
 		if signCert {
 			log.Info("new certificate to sign", "name:", cert.Name, "namespace:", cert.Namespace)
-			SignedCeritificate, err := r.CreateNewCertificate(ctx, instance, cert, client, user)
+			SignedCeritificate, err := r.CreateNewCertificate(ctx, instance, cert, legoClient, user)
 			if err != nil {
 				errMsg = err
 				goto finalize

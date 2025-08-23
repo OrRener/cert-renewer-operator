@@ -29,6 +29,10 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 )
 
+const (
+	errorStatus = "Error"
+)
+
 func ParseDaysDuration(threshold string) (string, error) {
 	daysStr := strings.TrimSuffix(threshold, "d")
 	daysInt, err := strconv.Atoi(daysStr)
@@ -75,7 +79,7 @@ func (r *OCPCertificateTrackerReconciler) CheckIfValidCertificate(expiration str
 	expirationTime, err := time.Parse("2006-01-02 15:04:05 -0700 MST", strings.TrimSpace(expiration))
 	var timeToParse string
 	if err != nil {
-		return "Error", fmt.Errorf("failed to parse expiration time: %v", err)
+		return errorStatus, fmt.Errorf("failed to parse expiration time: %v", err)
 	}
 
 	if expirationTime.Before(metav1.Now().Time) {
@@ -84,7 +88,7 @@ func (r *OCPCertificateTrackerReconciler) CheckIfValidCertificate(expiration str
 	if strings.HasSuffix(instance.Spec.ExpirationThreshold, "d") {
 		timeToParse, err = ParseDaysDuration(instance.Spec.ExpirationThreshold)
 		if err != nil {
-			return "Error", fmt.Errorf("failed to parse expiration threshold: %v", err)
+			return errorStatus, fmt.Errorf("failed to parse expiration threshold: %v", err)
 		}
 	} else {
 		timeToParse = instance.Spec.ExpirationThreshold
@@ -100,7 +104,7 @@ func (r *OCPCertificateTrackerReconciler) CheckIfValidCertificate(expiration str
 }
 
 func (r *OCPCertificateTrackerReconciler) getSecret(cert certv1.CertificatesStruct, ctx context.Context) (*corev1.Secret, bool, error) {
-	secret := &corev1.Secret{}
+	secret := new(corev1.Secret)
 	err := r.Get(ctx, client.ObjectKey{
 		Name:      cert.Name,
 		Namespace: cert.Namespace,
@@ -167,7 +171,7 @@ func (r *OCPCertificateTrackerReconciler) CreateCertStatus(status, message, expi
 func (r *OCPCertificateTrackerReconciler) CheckForFailedCerts(ctx context.Context, instance *certv1.OCPCertificateTracker, certs []certv1.CertificatesStatusStruct) bool {
 
 	for _, cert := range certs {
-		if cert.Status == "Error" {
+		if cert.Status == errorStatus {
 			return true
 		}
 	}
@@ -270,9 +274,9 @@ func (r *OCPCertificateTrackerReconciler) CreateSecret(ctx context.Context, sign
 	return nil
 }
 
-func (r *OCPCertificateTrackerReconciler) CreateNewCertificate(ctx context.Context, instance *certv1.OCPCertificateTracker, cert certv1.CertificatesStruct, client *lego.Client, User *MyUser) (SignedCeritifactes, error) {
+func (r *OCPCertificateTrackerReconciler) CreateNewCertificate(ctx context.Context, instance *certv1.OCPCertificateTracker, cert certv1.CertificatesStruct, legoClient *lego.Client, User *MyUser) (SignedCeritifactes, error) {
 	var SignedCert SignedCeritifactes
-	crt, key, err := r.GenerateNewCertificate(client, User, &cert)
+	crt, key, err := r.GenerateNewCertificate(legoClient, User, &cert)
 	if err != nil {
 		return SignedCeritifactes{}, err
 	}
@@ -295,7 +299,7 @@ func (r *OCPCertificateTrackerReconciler) setupACME(email, acmeHost, pdnsHost, a
 		Email: email,
 		Key:   privateKey,
 	}
-	client, err := User.SetupLegoClient(User, acmeHost)
+	legoClient, err := User.SetupLegoClient(User, acmeHost)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -303,15 +307,15 @@ func (r *OCPCertificateTrackerReconciler) setupACME(email, acmeHost, pdnsHost, a
 	if err != nil {
 		return nil, nil, err
 	}
-	err = User.SetDNSProvider(client, pdnsProvider)
+	err = User.SetDNSProvider(legoClient, pdnsProvider)
 	if err != nil {
 		return nil, nil, err
 	}
-	err = User.RegisterClient(User, client)
+	err = User.RegisterClient(User, legoClient)
 	if err != nil {
 		return nil, nil, err
 	}
-	return client, User, nil
+	return legoClient, User, nil
 }
 
 func (r *OCPCertificateTrackerReconciler) GenerateNewCertificate(client *lego.Client, User *MyUser, cert *certv1.CertificatesStruct) ([]byte, []byte, error) {
