@@ -104,7 +104,7 @@ func (r *OCPCertificateTrackerReconciler) CheckIfValidCertificate(expiration str
 }
 
 func (r *OCPCertificateTrackerReconciler) getSecret(cert certv1.CertificatesStruct, ctx context.Context) (*corev1.Secret, bool, error) {
-	var secret *corev1.Secret
+	secret := &corev1.Secret{}
 	err := r.Get(ctx, client.ObjectKey{
 		Name:      cert.Name,
 		Namespace: cert.Namespace,
@@ -119,16 +119,8 @@ func (r *OCPCertificateTrackerReconciler) getSecret(cert certv1.CertificatesStru
 	return secret, true, nil
 }
 
-func (r *OCPCertificateTrackerReconciler) UpdateExpiryStatus(ctx context.Context, cert certv1.CertificatesStruct, instance *certv1.OCPCertificateTracker, secret *corev1.Secret) (string, string, error) {
-	if secret == nil {
-		return "", "", errors.New("empty secret")
-	}
-	certData, exists := secret.Data["tls.crt"]
-	if !exists {
-		err := errors.New("data not found")
-		return "", "", err
-	}
-	expiration, err := r.FindExpirationOfCertificate(ctx, certData)
+func (r *OCPCertificateTrackerReconciler) UpdateExpiryStatus(ctx context.Context, instance *certv1.OCPCertificateTracker, cert []byte) (string, string, error) {
+	expiration, err := r.FindExpirationOfCertificate(ctx, cert)
 	if err != nil {
 		return "", "", err
 	}
@@ -241,7 +233,7 @@ func (r *OCPCertificateTrackerReconciler) tryUpdatingSecret(ctx context.Context,
 	return r.Patch(ctx, secret, patch)
 }
 
-func (r *OCPCertificateTrackerReconciler) CreateSecret(ctx context.Context, signedCert SignedCeritifactes, cert certv1.CertificatesStruct, instance *certv1.OCPCertificateTracker) error {
+func (r *OCPCertificateTrackerReconciler) CreateSecret(ctx context.Context, signedCert SignedCertificates, cert certv1.CertificatesStruct, instance *certv1.OCPCertificateTracker) error {
 	log := logf.FromContext(ctx)
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -274,17 +266,17 @@ func (r *OCPCertificateTrackerReconciler) CreateSecret(ctx context.Context, sign
 	return nil
 }
 
-func (r *OCPCertificateTrackerReconciler) CreateNewCertificate(ctx context.Context, instance *certv1.OCPCertificateTracker, cert certv1.CertificatesStruct, legoClient *lego.Client, User *MyUser) (SignedCeritifactes, error) {
-	var SignedCert SignedCeritifactes
+func (r *OCPCertificateTrackerReconciler) CreateNewCertificate(ctx context.Context, instance *certv1.OCPCertificateTracker, cert certv1.CertificatesStruct, legoClient *lego.Client, User *MyUser) (SignedCertificates, error) {
+	var SignedCert SignedCertificates
 	crt, key, err := r.GenerateNewCertificate(legoClient, User, &cert)
 	if err != nil {
-		return SignedCeritifactes{}, err
+		return SignedCertificates{}, err
 	}
 	expiry, err := r.FindExpirationOfCertificate(ctx, crt)
 	if err != nil {
-		return SignedCeritifactes{}, nil
+		return SignedCertificates{}, nil
 	}
-	SignedCert = SignedCeritifactes{
+	SignedCert = SignedCertificates{
 		Name:   cert.Name,
 		Cert:   crt,
 		Key:    key,
