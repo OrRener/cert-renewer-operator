@@ -87,7 +87,10 @@ func (r *IssuerConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		log.Error(err, "failed to find secret", "instance:", instance.Name)
 		instance.Status = r.CreateCertStatus("Error", err.Error())
-		r.UpdateObjectStatus(ctx, instance)
+		err = r.UpdateObjectStatus(ctx, instance)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, err
 	} else {
 		log.Info("Successfully read info from issuerConfig", "instance:", instance)

@@ -78,7 +78,7 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 				return ctrl.Result{}, err
 			}
 			controllerutil.RemoveFinalizer(instance, finalizer)
-			return ctrl.Result{}, r.Client.Update(ctx, instance)
+			return ctrl.Result{}, r.Update(ctx, instance)
 		}
 		return ctrl.Result{}, nil
 	}
@@ -105,7 +105,7 @@ func (r *OCPCertificateTrackerReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	for _, cert := range instance.Spec.Certificates {
-		secret := &corev1.Secret{}
+		secret := new(corev1.Secret)
 		signCert := false
 		var errMsg error = nil
 		var expiration, status, message string

@@ -238,7 +238,7 @@ func (r *OCPCertificateTrackerReconciler) tryUpdatingSecret(ctx context.Context,
 		"cert.compute.io/managed":    "true",
 	}
 
-	return r.Client.Patch(ctx, secret, patch)
+	return r.Patch(ctx, secret, patch)
 }
 
 func (r *OCPCertificateTrackerReconciler) CreateSecret(ctx context.Context, signedCert SignedCeritifactes, cert certv1.CertificatesStruct, instance *certv1.OCPCertificateTracker) error {
@@ -318,8 +318,8 @@ func (r *OCPCertificateTrackerReconciler) setupACME(email, acmeHost, pdnsHost, a
 	return legoClient, User, nil
 }
 
-func (r *OCPCertificateTrackerReconciler) GenerateNewCertificate(client *lego.Client, User *MyUser, cert *certv1.CertificatesStruct) ([]byte, []byte, error) {
-	crt, key, err := User.ObtainCertificates(client, cert.Domains)
+func (r *OCPCertificateTrackerReconciler) GenerateNewCertificate(legoClient *lego.Client, User *MyUser, cert *certv1.CertificatesStruct) ([]byte, []byte, error) {
+	crt, key, err := User.ObtainCertificates(legoClient, cert.Domains)
 	if err != nil {
 		return nil, nil, err
 	}

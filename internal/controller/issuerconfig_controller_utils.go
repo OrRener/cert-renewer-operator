@@ -79,7 +79,7 @@ func (r *IssuerConfigReconciler) cleanup(ctx context.Context) error {
 		if secretToUpdate.Labels != nil {
 			delete(secretToUpdate.Labels, "cert.compute.io/issuer")
 		}
-		if err := r.Client.Patch(ctx, secretToUpdate, client.MergeFrom(&secret)); err != nil {
+		if err := r.Patch(ctx, secretToUpdate, client.MergeFrom(&secret)); err != nil {
 			return fmt.Errorf("failed to remove label from secret %s: %w", secretToUpdate.Name, err)
 		}
 	}
