@@ -47,7 +47,7 @@ func (r *IssuerConfigReconciler) updateSecret(ctx context.Context, instance *cer
 		"cert.compute.io/managed": "true",
 	}
 
-	return r.Client.Patch(ctx, secret, patch)
+	return r.Patch(ctx, secret, patch)
 }
 
 func (r *IssuerConfigReconciler) CreateCertStatus(status, message string) certv1.IssuerConfigStatus {
@@ -69,7 +69,7 @@ func (r *IssuerConfigReconciler) cleanup(ctx context.Context) error {
 		client.MatchingLabelsSelector{Selector: labels.NewSelector().Add(*selector)},
 	}
 
-	if err := r.Client.List(ctx, secretList, listOpts...); err != nil {
+	if err := r.List(ctx, secretList, listOpts...); err != nil {
 		return fmt.Errorf("failed to list secrets for cleanup: %w", err)
 	}
 
